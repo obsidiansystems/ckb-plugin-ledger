@@ -23,6 +23,16 @@ ckb-sdk = { git = "https://github.com/nervosnetwork/ckb-cli", rev = "fcc8b0f54ac
 ckb-index = { git = "https://github.com/nervosnetwork/ckb-cli", rev = "fcc8b0f54ac447fdf0e0794b600675baa866db32" }
 ckb-cli-plugin-protocol = { git = "https://github.com/nervosnetwork/ckb-cli", rev = "fcc8b0f54ac447fdf0e0794b600675baa866db32" }
 
+ledger-apdu = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "b7e27d51f76060f29cd0cc6a995e07b784aa5208"}
+ledger-transport-hid = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "b7e27d51f76060f29cd0cc6a995e07b784aa5208"}
+
+bitflags = "1.2.1"
+bitcoin_hashes = "0.3.2"
+byteorder = "1.3.4"
+either = "1.5.3"
+failure = "0.1.5"
+log = "0.4.6"
+secp256k1 = {version = "0.17.0" }
 
 serde = { version = "1.0", features = ["rc"] }
 serde_derive = "1.0"
