@@ -37,14 +37,10 @@ pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<P
     }
 }
 
-fn keystore_handler (_keystore: &mut LedgerKeyStore, request: KeyStoreRequest) -> PluginResponse {
+fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) -> PluginResponse {
     match request {
         KeyStoreRequest::ListAccount => {
-            let accounts = vec![
-                h160!("0xe22f7f385830a75e50ab7fc5fd4c35b134f1e84b"),
-                h160!("0x13e41d6F9292555916f17B4882a5477C01270142"),
-                h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"),
-            ];
+            let accounts = keystore.list_accounts();
             PluginResponse::H160Vec(accounts)
         }
         KeyStoreRequest::HasAccount(_) => PluginResponse::Boolean(true),
