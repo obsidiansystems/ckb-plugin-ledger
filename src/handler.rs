@@ -8,7 +8,11 @@ use ckb_jsonrpc_types::JsonBytes;
 use std::convert::TryInto;
 use std::io::{self, Write};
 
-pub fn handle(request: PluginRequest) -> Option<PluginResponse> {
+use crate::keystore::{
+    LedgerKeyStore,
+};
+
+pub fn handle(_keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
     match request {
         PluginRequest::Quit => None,
         PluginRequest::GetConfig => {
