@@ -81,6 +81,11 @@ impl LedgerKeyStore {
         }
     }
 
+    pub fn has_account(&mut self, lock_arg: &H160) -> Result<bool, LedgerKeyStoreError> {
+        self.refresh()?;
+        Ok(self.imported_accounts.contains_key(lock_arg))
+    }
+
     fn clear_discovered_devices(&mut self) -> () {
         let mut paths_to_remove = Vec::new();
         for i in self.discovered_devices.values() {

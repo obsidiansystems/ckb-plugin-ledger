@@ -43,7 +43,12 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             let accounts = keystore.list_accounts();
             PluginResponse::H160Vec(accounts)
         }
-        KeyStoreRequest::HasAccount(_) => PluginResponse::Boolean(true),
+        KeyStoreRequest::HasAccount(lock_arg) =>
+            if let Ok (b) = keystore.has_account(&lock_arg) {
+                PluginResponse::Boolean(b)
+            } else {
+                PluginResponse::Boolean(false)
+            }
         KeyStoreRequest::CreateAccount(_) => {
             PluginResponse::H160(h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"))
         }
