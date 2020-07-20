@@ -50,16 +50,33 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                 PluginResponse::Boolean(false)
             }
         KeyStoreRequest::CreateAccount(_) => {
-            PluginResponse::H160(h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"))
+            PluginResponse::Error(JsonrpcError {
+                code: 0,
+                message: String::from("Create account is not supported for Ledger, try 'ledger import' command instead"),
+                data: None,
+            })
         }
-        KeyStoreRequest::UpdatePassword { .. } => PluginResponse::Ok,
+        KeyStoreRequest::UpdatePassword { .. } => {
+            PluginResponse::Error(JsonrpcError {
+                code: 0,
+                message: String::from("Update password is not a valid operation for Ledger"),
+                data: None,
+            })
+        }
         KeyStoreRequest::Import { .. } => {
-            PluginResponse::H160(h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"))
+            PluginResponse::Error(JsonrpcError {
+                code: 0,
+                message: String::from("'account import' is not available for Ledger"),
+                data: None,
+            })
         }
-        KeyStoreRequest::Export { .. } => PluginResponse::MasterPrivateKey {
-            privkey: JsonBytes::from_vec(vec![3u8; 32]),
-            chain_code: JsonBytes::from_vec(vec![4u8; 32]),
-        },
+        KeyStoreRequest::Export { .. } => {
+            PluginResponse::Error(JsonrpcError {
+                code: 0,
+                message: String::from("'account export' is not available for Ledger"),
+                data: None,
+            })
+        }
         KeyStoreRequest::Sign {
             recoverable,
             target,
