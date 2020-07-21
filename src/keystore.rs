@@ -543,6 +543,55 @@ impl LedgerMasterCap {
         })
     }
 
+    pub fn derived_key_set(
+        &self,
+        external_max_len: u32,
+        change_last: &H160,
+        change_max_len: u32,
+    ) -> Result<DerivedKeySet, LedgerKeyStoreError> {
+        let mut external_key_set = Vec::new();
+        for i in 0..external_max_len {
+            let path_string = format!("m/44'/309'/0'/{}/{}", KeyChain::External as u8, i);
+            let path = DerivationPath::from_str(path_string.as_str()).unwrap();
+            let epk = self
+                .account
+                .ext_pub_key_root
+                .ckd_pub(&SECP256K1, ChildNumber::Normal { index: 0 })
+                .unwrap();
+            let extended_pubkey = epk
+                .ckd_pub(&SECP256K1, ChildNumber::Normal { index: i })
+                .unwrap();
+            let pubkey = extended_pubkey.public_key;
+            let hash = H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20])
+                .expect("Generate hash(H160) from pubkey failed");
+            external_key_set.push((path, hash));
+        }
+
+        let mut change_key_set = Vec::new();
+        for i in 0..change_max_len {
+            let path_string = format!("m/44'/309'/0'/{}/{}", KeyChain::Change as u8, i);
+            let path = DerivationPath::from_str(path_string.as_str()).unwrap();
+            let epk = self
+                .account
+                .ext_pub_key_root
+                .ckd_pub(&SECP256K1, ChildNumber::Normal { index: 1 })
+                .unwrap();
+            let extended_pubkey = epk
+                .ckd_pub(&SECP256K1, ChildNumber::Normal { index: i })
+                .unwrap();
+            let pubkey = extended_pubkey.public_key;
+            let hash = H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20])
+                .expect("Generate hash(H160) from pubkey failed");
+            change_key_set.push((path, hash.clone()));
+            if change_last == &hash {
+                return Ok(DerivedKeySet {
+                    external: external_key_set,
+                    change: change_key_set,
+                });
+            }
+        }
+        Err(LedgerKeyStoreError::SearchDerivedAddrFailed(change_last.clone()))
+    }
 }
 
 const WRITE_ERR_MSG: &'static str = "IO error not possible when writing to Vec last I checked";
@@ -553,55 +602,6 @@ const WRITE_ERR_MSG: &'static str = "IO error not possible when writing to Vec l
 //     type Privkey = LedgerCap;
 
 
-//     fn derived_key_set(
-//         &self,
-//         external_max_len: u32,
-//         change_last: &H160,
-//         change_max_len: u32,
-//     ) -> Result<DerivedKeySet, Either<Self::Err, SearchDerivedAddrFailed>> {
-//         let mut external_key_set = Vec::new();
-//         for i in 0..external_max_len {
-//             let path_string = format!("m/44'/309'/0'/{}/{}", KeyChain::External as u8, i);
-//             let path = DerivationPath::from_str(path_string.as_str()).unwrap();
-//             let epk = self
-//                 .account
-//                 .ext_pub_key_root
-//                 .ckd_pub(&SECP256K1, ChildNumber::Normal { index: 0 })
-//                 .unwrap();
-//             let extended_pubkey = epk
-//                 .ckd_pub(&SECP256K1, ChildNumber::Normal { index: i })
-//                 .unwrap();
-//             let pubkey = extended_pubkey.public_key;
-//             let hash = H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20])
-//                 .expect("Generate hash(H160) from pubkey failed");
-//             external_key_set.push((path, hash));
-//         }
-
-//         let mut change_key_set = Vec::new();
-//         for i in 0..change_max_len {
-//             let path_string = format!("m/44'/309'/0'/{}/{}", KeyChain::Change as u8, i);
-//             let path = DerivationPath::from_str(path_string.as_str()).unwrap();
-//             let epk = self
-//                 .account
-//                 .ext_pub_key_root
-//                 .ckd_pub(&SECP256K1, ChildNumber::Normal { index: 1 })
-//                 .unwrap();
-//             let extended_pubkey = epk
-//                 .ckd_pub(&SECP256K1, ChildNumber::Normal { index: i })
-//                 .unwrap();
-//             let pubkey = extended_pubkey.public_key;
-//             let hash = H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20])
-//                 .expect("Generate hash(H160) from pubkey failed");
-//             change_key_set.push((path, hash.clone()));
-//             if change_last == &hash {
-//                 return Ok(DerivedKeySet {
-//                     external: external_key_set,
-//                     change: change_key_set,
-//                 });
-//             }
-//         }
-//         Err(Either::Right(SearchDerivedAddrFailed))
-//     }
 // }
 
 /// A ledger device with the Nervos app constrained to a specific derivation path.

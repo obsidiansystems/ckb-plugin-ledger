@@ -17,6 +17,8 @@ pub enum Error {
     LedgerNotFound { id: LedgerId },
     #[fail(display = "Ledger account for lock_arg: {:?} not found", _0)]
     LedgerAccountNotFound ( H160 ),
+    #[fail(display = "Search derived address failed: {:?} ", _0)]
+    SearchDerivedAddrFailed ( H160 ),
     #[fail(display = "Error in client-side BIP-32 calculations: {}", _0)]
     Bip32Error(Bip32Error),
     #[fail(display = "Error in secp256k1 marshalling: {}", _0)]

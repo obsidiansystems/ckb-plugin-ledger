@@ -6,7 +6,7 @@ use ckb_cli_plugin_protocol::{
     PluginResponse, PluginRole,
 };
 use ckb_sdk::wallet::{
-    DerivationPath,
+    DerivationPath, DerivedKeySet
 };
 use secp256k1::{key::PublicKey};
 use ckb_jsonrpc_types::JsonBytes;
@@ -116,28 +116,23 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             let public_key = account.extended_privkey(drv_path.as_ref())?.public_key()?;
             Ok(PluginResponse::Bytes(JsonBytes::from_vec(public_key.serialize().to_vec())))
         }
-        KeyStoreRequest::DerivedKeySet { .. } => Ok(PluginResponse::DerivedKeySet {
-            external: vec![
-                (
-                    "m/44'/309'/0'/0/19".to_owned(),
-                    h160!("0x13e41d6F9292555916f17B4882a5477C01270142"),
-                ),
-                (
-                    "m/44'/309'/0'/0/20".to_owned(),
-                    h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"),
-                ),
-            ],
-            change: vec![
-                (
-                    "m/44'/309'/0'/1/19".to_owned(),
-                    h160!("0x13e41d6F9292555916f17B4882a5477C01270142"),
-                ),
-                (
-                    "m/44'/309'/0'/1/20".to_owned(),
-                    h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"),
-                ),
-            ],
-        }),
+        // DerivedKeySet {
+        //     hash160: H160,
+        //     external_max_len: u32,
+        //     change_last: H160,
+        //     change_max_len: u32,
+        //     password: Option<String>,
+        // },
+        KeyStoreRequest::DerivedKeySet {
+            hash160,
+            external_max_len,
+            change_last,
+            change_max_len,
+            password: _
+        } => {
+            let account = keystore.borrow_account(&hash160)?;
+            account.derived_key_set(external_max_len, &change_last, change_max_len).map(|v| derived_key_set_to_response(v))
+        }
         KeyStoreRequest::DerivedKeySetByIndex { .. } => Ok(PluginResponse::DerivedKeySet {
             external: vec![
                 (
@@ -167,5 +162,12 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                 data: None,
             }))
         }
+    }
+}
+
+fn derived_key_set_to_response (v:DerivedKeySet) -> PluginResponse {
+    PluginResponse::DerivedKeySet {
+        external: v.external.into_iter().map(|(p, k)| (p.to_string(),k) ).collect(),
+        change: v.change.into_iter().map(|(p, k)| (p.to_string(),k) ).collect(),
     }
 }
