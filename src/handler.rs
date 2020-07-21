@@ -1,15 +1,20 @@
+use std::str::FromStr;
 use ckb_types::{h160, H160};
 
 use ckb_cli_plugin_protocol::{
     JsonrpcError, JsonrpcRequest, JsonrpcResponse, KeyStoreRequest, PluginConfig, PluginRequest,
     PluginResponse, PluginRole,
 };
+use ckb_sdk::wallet::{
+    DerivationPath,
+};
+use secp256k1::{key::PublicKey};
 use ckb_jsonrpc_types::JsonBytes;
 use std::convert::TryInto;
 use std::io::{self, Write};
 
 use crate::keystore::{
-    LedgerKeyStore,
+    LedgerKeyStore, LedgerKeyStoreError
 };
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
@@ -27,7 +32,14 @@ pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<P
             Some(PluginResponse::PluginConfig(config))
         }
         PluginRequest::KeyStore(keystore_request) => {
-            Some(keystore_handler(keystore, keystore_request))
+            match keystore_handler(keystore, keystore_request) {
+                Ok(resp) => Some(resp),
+                Err(e) => Some(PluginResponse::Error(JsonrpcError {
+                    code: 0,
+                    message: e.to_string(),
+                    data: None,
+                }))
+        }
         }
         _ => Some(PluginResponse::Error(JsonrpcError {
             code: 0,
@@ -37,45 +49,45 @@ pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<P
     }
 }
 
-fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) -> PluginResponse {
+fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) -> Result <PluginResponse, LedgerKeyStoreError> {
     match request {
         KeyStoreRequest::ListAccount => {
             let accounts = keystore.list_accounts();
-            PluginResponse::H160Vec(accounts)
+            Ok(PluginResponse::H160Vec(accounts))
         }
         KeyStoreRequest::HasAccount(lock_arg) =>
             if let Ok (b) = keystore.has_account(&lock_arg) {
-                PluginResponse::Boolean(b)
+                Ok(PluginResponse::Boolean(b))
             } else {
-                PluginResponse::Boolean(false)
+                Ok(PluginResponse::Boolean(false))
             }
         KeyStoreRequest::CreateAccount(_) => {
-            PluginResponse::Error(JsonrpcError {
+            Ok(PluginResponse::Error(JsonrpcError {
                 code: 0,
                 message: String::from("Create account is not supported for Ledger, try 'ledger import' command instead"),
                 data: None,
-            })
+            }))
         }
         KeyStoreRequest::UpdatePassword { .. } => {
-            PluginResponse::Error(JsonrpcError {
+            Ok(PluginResponse::Error(JsonrpcError {
                 code: 0,
                 message: String::from("Update password is not a valid operation for Ledger"),
                 data: None,
-            })
+            }))
         }
         KeyStoreRequest::Import { .. } => {
-            PluginResponse::Error(JsonrpcError {
+            Ok(PluginResponse::Error(JsonrpcError {
                 code: 0,
                 message: String::from("'account import' is not available for Ledger"),
                 data: None,
-            })
+            }))
         }
         KeyStoreRequest::Export { .. } => {
-            PluginResponse::Error(JsonrpcError {
+            Ok(PluginResponse::Error(JsonrpcError {
                 code: 0,
                 message: String::from("'account export' is not available for Ledger"),
                 data: None,
-            })
+            }))
         }
         KeyStoreRequest::Sign {
             recoverable,
@@ -91,16 +103,20 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             } else {
                 vec![2u8; 64]
             };
-            PluginResponse::Bytes(JsonBytes::from_vec(signature))
+            Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
         }
-        KeyStoreRequest::ExtendedPubkey { .. } => {
-            PluginResponse::Bytes(JsonBytes::from_vec(vec![
-                0x02, 0x53, 0x1f, 0xe6, 0x06, 0x81, 0x34, 0x50, 0x3d, 0x27, 0x23, 0x13,
-                0x32, 0x27, 0xc8, 0x67, 0xac, 0x8f, 0xa6, 0xc8, 0x3c, 0x53, 0x7e, 0x9a,
-                0x44, 0xc3, 0xc5, 0xbd, 0xbd, 0xcb, 0x1f, 0xe3, 0x37,
-            ]))
+        // ExtendedPubkey {
+        //     hash160: H160,
+        //     path: String,
+        //     password: Option<String>,
+        // },
+        KeyStoreRequest::ExtendedPubkey { hash160, path, password: _ } => {
+            let account = keystore.borrow_account(&hash160)?;
+            let drv_path = DerivationPath::from_str(&path).unwrap();
+            let public_key = account.extended_privkey(drv_path.as_ref())?.public_key()?;
+            Ok(PluginResponse::Bytes(JsonBytes::from_vec(public_key.serialize().to_vec())))
         }
-        KeyStoreRequest::DerivedKeySet { .. } => PluginResponse::DerivedKeySet {
+        KeyStoreRequest::DerivedKeySet { .. } => Ok(PluginResponse::DerivedKeySet {
             external: vec![
                 (
                     "m/44'/309'/0'/0/19".to_owned(),
@@ -121,8 +137,8 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                     h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"),
                 ),
             ],
-        },
-        KeyStoreRequest::DerivedKeySetByIndex { .. } => PluginResponse::DerivedKeySet {
+        }),
+        KeyStoreRequest::DerivedKeySetByIndex { .. } => Ok(PluginResponse::DerivedKeySet {
             external: vec![
                 (
                     "m/44'/309'/0'/0/19".to_owned(),
@@ -143,13 +159,13 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                     h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"),
                 ),
             ],
-        },
+        }),
         _ => {
-            PluginResponse::Error(JsonrpcError {
+            Ok(PluginResponse::Error(JsonrpcError {
                 code: 0,
                 message: String::from("Not supported yet"),
                 data: None,
-            })
+            }))
         }
     }
 }
