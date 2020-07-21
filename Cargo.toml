@@ -43,3 +43,6 @@ serde_yaml = "0.8.9"
 [target.'cfg(unix)'.dependencies]
 tui = "0.6.0"
 termion = "1.5"
+
+[build-dependencies]
+ckb-build-info = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
