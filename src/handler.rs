@@ -133,28 +133,26 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             let account = keystore.borrow_account(&hash160)?;
             account.derived_key_set(external_max_len, &change_last, change_max_len).map(|v| derived_key_set_to_response(v))
         }
-        KeyStoreRequest::DerivedKeySetByIndex { .. } => Ok(PluginResponse::DerivedKeySet {
-            external: vec![
-                (
-                    "m/44'/309'/0'/0/19".to_owned(),
-                    h160!("0x13e41d6F9292555916f17B4882a5477C01270142"),
-                ),
-                (
-                    "m/44'/309'/0'/0/20".to_owned(),
-                    h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"),
-                ),
-            ],
-            change: vec![
-                (
-                    "m/44'/309'/0'/1/19".to_owned(),
-                    h160!("0x13e41d6F9292555916f17B4882a5477C01270142"),
-                ),
-                (
-                    "m/44'/309'/0'/1/20".to_owned(),
-                    h160!("0xb39bbc0b3673c7d36450bc14cfcdad2d559c6c64"),
-                ),
-            ],
-        }),
+        // DerivedKeySetByIndex {
+        //     hash160: H160,
+        //     external_start: u32,
+        //     external_length: u32,
+        //     change_start: u32,
+        //     change_length: u32,
+        //     password: Option<String>,
+        // },
+        KeyStoreRequest::DerivedKeySetByIndex {
+            hash160,
+            external_start,
+            external_length,
+            change_start,
+            change_length,
+            password: _
+        } => {
+            let account = keystore.borrow_account(&hash160)?;
+            let s = account.derived_key_set_by_index(external_start, external_length, change_start, change_length);
+            Ok(derived_key_set_to_response(s))
+        }
         _ => {
             Ok(PluginResponse::Error(JsonrpcError {
                 code: 0,
