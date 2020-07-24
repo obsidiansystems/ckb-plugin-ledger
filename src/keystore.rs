@@ -683,12 +683,8 @@ impl LedgerCap {
         Ok(PublicKey::from_slice(&raw_public_key)?)
     }
 
-    fn begin_sign_recoverable(&self, message: Vec<u8>) -> Result<RecoverableSignature, LedgerKeyStoreError> {
-        debug!(
-            "Sending Nervos CKB Ledger app message of {:02x?} with length {:?}",
-            message,
-            message.len()
-        );
+    fn begin_sign_recoverable(&self, tx: AnnotatedTransaction)
+                              -> Result<RecoverableSignature, LedgerKeyStoreError> {
 
         // Need to fill in missing “path” from signer.
         let mut raw_path = Vec::<Uint32>::new();
@@ -705,15 +701,14 @@ impl LedgerCap {
             )
         }
 
-        let message_with_sign_path = AnnotatedTransaction::from_slice(&message).unwrap();
         let sign_path = Bip32::new_builder().set(raw_path).build();
-        let change_path = if message_with_sign_path.change_path().len() == 0 {
+        let change_path = if tx.change_path().len() == 0 {
             sign_path.clone()
         } else {
-            message_with_sign_path.change_path()
+            tx.change_path()
         };
 
-        let raw_message = message_with_sign_path
+        let raw_message = tx
             .as_builder()
             .sign_path(sign_path)
             .change_path(change_path)
