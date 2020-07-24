@@ -683,8 +683,8 @@ impl LedgerCap {
         Ok(PublicKey::from_slice(&raw_public_key)?)
     }
 
-    fn begin_sign_recoverable(&self, tx: AnnotatedTransaction)
-                              -> Result<RecoverableSignature, LedgerKeyStoreError> {
+    pub fn begin_sign_recoverable(&self, tx: AnnotatedTransaction)
+                              -> Result<Vec<u8>, LedgerKeyStoreError> {
 
         // Need to fill in missing “path” from signer.
         let mut raw_path = Vec::<Uint32>::new();
@@ -759,15 +759,15 @@ impl LedgerCap {
             response.data.len()
         );
 
-        let raw_signature = response.data.clone();
-        let mut resp = &raw_signature[..];
+        // let raw_signature = response.data.clone();
+        // let mut resp = &raw_signature[..];
 
-        let data = parse::split_off_at(&mut resp, 64)?;
-        let recovery_id = RecoveryId::from_i32(parse::split_first(&mut resp)? as i32)?;
-        debug!("Recovery id is {:?}", recovery_id);
-        parse::assert_nothing_left(resp)?;
+        // let data = parse::split_off_at(&mut resp, 64)?;
+        // let recovery_id = RecoveryId::from_i32(parse::split_first(&mut resp)? as i32)?;
+        // debug!("Recovery id is {:?}", recovery_id);
+        // parse::assert_nothing_left(resp)?;
 
-        Ok(RecoverableSignature::from_compact(data, recovery_id)?)
+        Ok(response.data)
     }
 }
 
