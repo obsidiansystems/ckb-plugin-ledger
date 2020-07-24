@@ -513,6 +513,7 @@ dependencies = [
  "ckb-util",
  "dirs",
  "either",
+ "env_logger",
  "failure",
  "ledger-apdu",
  "ledger-transport-hid",
