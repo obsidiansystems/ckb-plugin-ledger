@@ -14,6 +14,7 @@ mod handler;
 mod keystore;
 
 fn main() {
+    env_logger::init();
     let mut keystore = get_ledger_key_store().unwrap();
     loop {
         let mut line = String::new();
