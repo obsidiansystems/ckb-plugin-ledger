@@ -75,6 +75,11 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                 data: None,
             }))
         }
+        // Import {
+        //     privkey: [u8; 32],
+        //     chain_code: [u8; 32],
+        //     password: Option<String>,
+        // },
         KeyStoreRequest::Import { .. } => {
             Ok(PluginResponse::Error(JsonrpcError {
                 code: 0,
@@ -88,22 +93,6 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                 message: String::from("'account export' is not available for Ledger"),
                 data: None,
             }))
-        }
-        KeyStoreRequest::Sign {
-            recoverable,
-            target,
-            ..
-        } => {
-            eprintln!(
-                "SignTaret: {}",
-                serde_json::to_string_pretty(&target).unwrap()
-            );
-            let signature = if recoverable {
-                vec![1u8; 65]
-            } else {
-                vec![2u8; 64]
-            };
-            Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
         }
         // ExtendedPubkey {
         //     hash160: H160,
@@ -152,6 +141,30 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             let account = keystore.borrow_account(&hash160)?;
             let s = account.derived_key_set_by_index(external_start, external_length, change_start, change_length);
             Ok(derived_key_set_to_response(s))
+        }
+        // Sign {
+        //     hash160: H160,
+        //     path: String,
+        //     message: H256,
+        //     target: Box<SignTarget>,
+        //     recoverable: bool,
+        //     password: Option<String>,
+        // },
+        KeyStoreRequest::Sign {
+            recoverable,
+            target,
+            ..
+        } => {
+            eprintln!(
+                "SignTaret: {}",
+                serde_json::to_string_pretty(&target).unwrap()
+            );
+            let signature = if recoverable {
+                vec![1u8; 65]
+            } else {
+                vec![2u8; 64]
+            };
+            Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
         }
         _ => {
             Ok(PluginResponse::Error(JsonrpcError {
