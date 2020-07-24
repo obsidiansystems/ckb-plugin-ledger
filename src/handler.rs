@@ -14,7 +14,7 @@ use std::convert::TryInto;
 use std::io::{self, Write};
 
 use crate::keystore::{
-    LedgerKeyStore, LedgerKeyStoreError
+    LedgerKeyStore, LedgerKeyStoreError, target_to_annotated_transaction
 };
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
@@ -151,20 +151,30 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
         //     password: Option<String>,
         // },
         KeyStoreRequest::Sign {
-            recoverable,
+            hash160,
+            path,
+            message: _,
             target,
-            ..
+            recoverable,
+            password: _
         } => {
-            eprintln!(
-                "SignTaret: {}",
-                serde_json::to_string_pretty(&target).unwrap()
-            );
-            let signature = if recoverable {
-                vec![1u8; 65]
+            // eprintln!(
+            //     "SignTaret: {}",
+            //     serde_json::to_string_pretty(&target).unwrap()
+            // );
+            let account = keystore.borrow_account(&hash160)?;
+            let drv_path = DerivationPath::from_str(&path).unwrap();
+            let ledger_cap = account.extended_privkey(drv_path.as_ref())?;
+            if recoverable {
+                let signature = ledger_cap.begin_sign_recoverable(target_to_annotated_transaction(*target))?;
+                Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
             } else {
-                vec![2u8; 64]
-            };
-            Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
+                Ok(PluginResponse::Error(JsonrpcError {
+                    code: 0,
+                    message: String::from("Non recoverable signing not supported"),
+                    data: None,
+                }))
+            }
         }
         _ => {
             Ok(PluginResponse::Error(JsonrpcError {
