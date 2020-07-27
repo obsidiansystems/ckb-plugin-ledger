@@ -27,6 +27,8 @@ use ckb_types::{
 use bitcoin_hashes::{hash160, Hash};
 use ckb_crypto::secp::SECP256K1;
 use ckb_hash::blake2b_256;
+
+use ckb_sdk::constants::{SECP_SIGNATURE_SIZE};
 use ckb_sdk::wallet::{
     ChildNumber, DerivationPath, DerivedKeySet, ExtendedPubKey, Fingerprint, KeyChain, ChainCode
 };
@@ -927,25 +929,38 @@ pub fn target_to_annotated_transaction (target: SignTarget) -> AnnotatedTransact
                 .build();
 
             let mut raw_change_path = Vec::<packed::Uint32>::new();
-            for &child_num in DerivationPath::from_str(&change_path).unwrap().as_ref().iter() {
-                let raw_child_num: u32 = child_num.into();
-                let raw_change_path_bytes = raw_child_num.to_le_bytes();
-                raw_change_path.push(
-                    packed::Uint32::new_builder()
-                        .nth0(raw_change_path_bytes[0].into())
-                        .nth1(raw_change_path_bytes[1].into())
-                        .nth2(raw_change_path_bytes[2].into())
-                        .nth3(raw_change_path_bytes[3].into())
-                        .build(),
-                )
-            }
 
-            let witnesses = tx.witnesses.iter().cloned().map(From::from).collect::<Vec<_>>();
+            // Ignore the root change path, which is the default value sent when change is not specified
+            if change_path != "m" {
+                for &child_num in DerivationPath::from_str(&change_path).unwrap().as_ref().iter() {
+                    let raw_child_num: u32 = child_num.into();
+                    let raw_change_path_bytes = raw_child_num.to_le_bytes();
+                    raw_change_path.push(
+                        packed::Uint32::new_builder()
+                            .nth0(raw_change_path_bytes[0].into())
+                            .nth1(raw_change_path_bytes[1].into())
+                            .nth2(raw_change_path_bytes[2].into())
+                            .nth3(raw_change_path_bytes[3].into())
+                            .build(),
+                    )
+                }
+            };
+
+            let witnesses_vec = if tx.witnesses.is_empty() {
+                let init_witness = WitnessArgs::default()
+                    .as_builder()
+                    .lock(Some(Bytes::from(vec![0u8; SECP_SIGNATURE_SIZE])).pack())
+                    .build();
+                vec![init_witness.as_bytes().pack()]
+            } else {
+                tx.witnesses.iter().cloned().map(From::from).collect::<Vec<_>>()
+            };
+
             packed::AnnotatedTransaction::new_builder()
                 .change_path(packed::Bip32::new_builder().set(raw_change_path).build())
                 .input_count(input_count)
                 .raw(raw_tx)
-                .witnesses(packed::BytesVec::new_builder().set(witnesses).build())
+                .witnesses(witnesses_vec.pack())
                 .build()
         },
         _ => panic!("targetToAnnotatedTransaction called for non Transaction type")
