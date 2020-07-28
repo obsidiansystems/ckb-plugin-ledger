@@ -282,17 +282,6 @@ impl LedgerKeyStore {
 
 }
 
-// impl AbstractKeyStore for LedgerKeyStore {
-//     const SOURCE_NAME: &'static str = "ledger hardware wallet";
-
-//     type Err = LedgerKeyStoreError;
-
-//     type AccountId = H160;
-
-//     type AccountCap = LedgerMasterCap;
-
-// }
-
 /// A ledger device with the Nervos app.
 #[derive(Clone)]
 pub struct LedgerMasterCap {
@@ -596,14 +585,6 @@ impl LedgerMasterCap {
 
 const WRITE_ERR_MSG: &'static str = "IO error not possible when writing to Vec last I checked";
 
-// impl AbstractMasterPrivKey for LedgerMasterCap {
-//     type Err = LedgerKeyStoreError;
-
-//     type Privkey = LedgerCap;
-
-
-// }
-
 /// A ledger device with the Nervos app constrained to a specific derivation path.
 #[derive(Clone)]
 pub struct LedgerCap {
@@ -673,6 +654,7 @@ impl LedgerCap {
         Ok(PublicKey::from_slice(&raw_public_key)?)
     }
 }
+
 // Only not using impl trait because unstable
 type LedgerClosure = Box<dyn FnOnce(Vec<u8>) -> Result<RecoverableSignature, LedgerKeyStoreError>>;
 
@@ -692,115 +674,6 @@ bitflags::bitflags! {
         const MASK = Self::LAST_MARKER.bits | Self::NO_FALLBACK.bits | Self::IS_CONTEXT.bits;
     }
 }
-
-// impl AbstractPrivKey for LedgerCap {
-//     type Err = LedgerKeyStoreError;
-
-//     type SignerSingleShot = SignEntireHelper<LedgerClosure>;
-
-
-//     fn sign(&self, _message: &[u8]) -> Result<Signature, Self::Err> {
-//         unimplemented!("Need to generalize method to not take hash")
-//         // let signature = self.sign_recoverable(message)?;
-//         // Ok(RecoverableSignature::to_standard(&signature))
-//     }
-
-//     fn begin_sign_recoverable(&self) -> Self::SignerSingleShot {
-//         let my_self = self.clone();
-
-//         SignEntireHelper::new(Box::new(move |message: Vec<u8>| {
-//             debug!(
-//                 "Sending Nervos CKB Ledger app message of {:02x?} with length {:?}",
-//                 message,
-//                 message.len()
-//             );
-
-//             // Need to fill in missing “path” from signer.
-//             let mut raw_path = Vec::<Uint32>::new();
-//             for &child_num in my_self.path.as_ref().iter() {
-//                 let raw_child_num: u32 = child_num.into();
-//                 let raw_path_bytes = raw_child_num.to_le_bytes();
-//                 raw_path.push(
-//                     Uint32::new_builder()
-//                         .nth0(raw_path_bytes[0].into())
-//                         .nth1(raw_path_bytes[1].into())
-//                         .nth2(raw_path_bytes[2].into())
-//                         .nth3(raw_path_bytes[3].into())
-//                         .build(),
-//                 )
-//             }
-
-//             let message_with_sign_path = AnnotatedTransaction::from_slice(&message).unwrap();
-//             let sign_path = Bip32::new_builder().set(raw_path).build();
-//             let change_path = if message_with_sign_path.change_path().len() == 0 {
-//                 sign_path.clone()
-//             } else {
-//                 message_with_sign_path.change_path()
-//             };
-
-//             let raw_message = message_with_sign_path
-//                 .as_builder()
-//                 .sign_path(sign_path)
-//                 .change_path(change_path)
-//                 .build();
-
-//             debug!(
-//                 "Modified Nervos CKB Ledger app message of {:02x?} with length {:?}",
-//                 raw_message.as_slice(),
-//                 raw_message.as_slice().len()
-//             );
-
-//             let chunk = |mut message: &[u8]| -> Result<_, Self::Err> {
-//                 assert!(message.len() > 0, "initial message must be non-empty");
-//                 let mut base = SignP1::FIRST;
-//                 loop {
-//                     let length = ::std::cmp::min(message.len(), MAX_APDU_SIZE);
-//                     let chunk = parse::split_off_at(&mut message, length)?;
-//                     let rest_length = message.len();
-//                     let ledger_app = my_self.master.ledger_app.as_ref().ok_or(
-//                         LedgerKeyStoreError::LedgerNotFound {
-//                             id: my_self.master.account.ledger_id.clone(),
-//                         },
-//                     )?;
-//                     let response = ledger_app.exchange(&APDUCommand {
-//                         cla: 0x80,
-//                         ins: 0x03,
-//                         p1: (if rest_length > 0 {
-//                             base
-//                         } else {
-//                             base | SignP1::LAST_MARKER
-//                         })
-//                         .bits,
-//                         p2: 0,
-//                         data: chunk.to_vec(),
-//                     })?;
-//                     if rest_length == 0 {
-//                         return Ok(response);
-//                     }
-//                     base = SignP1::NEXT;
-//                 }
-//             };
-
-//             let response = chunk(raw_message.as_slice().as_ref())?;
-
-//             debug!(
-//                 "Received Nervos CKB Ledger result of {:02x?} with length {:?}",
-//                 response.data,
-//                 response.data.len()
-//             );
-
-//             let raw_signature = response.data.clone();
-//             let mut resp = &raw_signature[..];
-
-//             let data = parse::split_off_at(&mut resp, 64)?;
-//             let recovery_id = RecoveryId::from_i32(parse::split_first(&mut resp)? as i32)?;
-//             debug!("Recovery id is {:?}", recovery_id);
-//             parse::assert_nothing_left(resp)?;
-
-//             Ok(RecoverableSignature::from_compact(data, recovery_id)?)
-//         }))
-//     }
-// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LedgerAccountJson {
