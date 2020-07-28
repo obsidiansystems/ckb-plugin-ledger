@@ -320,7 +320,7 @@ dependencies = [
 [[package]]
 name = "ckb-cli-plugin-protocol"
 version = "0.1.0"
-source = "git+https://github.com/obsidiansystems/ckb-cli?rev=62c19585e2243e056aa01189bc8146ab479013e9#62c19585e2243e056aa01189bc8146ab479013e9"
+source = "git+https://github.com/obsidiansystems/ckb-cli?rev=74a53046eae364e41d8fe59216bb502d91453b6b#74a53046eae364e41d8fe59216bb502d91453b6b"
 dependencies = [
  "ckb-index",
  "ckb-jsonrpc-types",
@@ -410,7 +410,7 @@ dependencies = [
 [[package]]
 name = "ckb-index"
 version = "0.34.0"
-source = "git+https://github.com/obsidiansystems/ckb-cli?rev=62c19585e2243e056aa01189bc8146ab479013e9#62c19585e2243e056aa01189bc8146ab479013e9"
+source = "git+https://github.com/obsidiansystems/ckb-cli?rev=74a53046eae364e41d8fe59216bb502d91453b6b#74a53046eae364e41d8fe59216bb502d91453b6b"
 dependencies = [
  "bincode",
  "ckb-rocksdb",
@@ -603,7 +603,7 @@ dependencies = [
 [[package]]
 name = "ckb-sdk"
 version = "0.34.0"
-source = "git+https://github.com/obsidiansystems/ckb-cli?rev=62c19585e2243e056aa01189bc8146ab479013e9#62c19585e2243e056aa01189bc8146ab479013e9"
+source = "git+https://github.com/obsidiansystems/ckb-cli?rev=74a53046eae364e41d8fe59216bb502d91453b6b#74a53046eae364e41d8fe59216bb502d91453b6b"
 dependencies = [
  "aes-ctr",
  "bech32",
@@ -635,7 +635,7 @@ dependencies = [
 [[package]]
 name = "ckb-sdk-types"
 version = "0.34.0"
-source = "git+https://github.com/obsidiansystems/ckb-cli?rev=62c19585e2243e056aa01189bc8146ab479013e9#62c19585e2243e056aa01189bc8146ab479013e9"
+source = "git+https://github.com/obsidiansystems/ckb-cli?rev=74a53046eae364e41d8fe59216bb502d91453b6b#74a53046eae364e41d8fe59216bb502d91453b6b"
 dependencies = [
  "ckb-error",
  "ckb-hash",
