@@ -294,17 +294,6 @@ impl LedgerKeyStore {
 
 }
 
-// impl AbstractKeyStore for LedgerKeyStore {
-//     const SOURCE_NAME: &'static str = "ledger hardware wallet";
-
-//     type Err = LedgerKeyStoreError;
-
-//     type AccountId = H160;
-
-//     type AccountCap = LedgerMasterCap;
-
-// }
-
 /// A ledger device with the Nervos app.
 #[derive(Clone)]
 pub struct LedgerMasterCap {
@@ -608,14 +597,6 @@ impl LedgerMasterCap {
 
 const WRITE_ERR_MSG: &'static str = "IO error not possible when writing to Vec last I checked";
 
-// impl AbstractMasterPrivKey for LedgerMasterCap {
-//     type Err = LedgerKeyStoreError;
-
-//     type Privkey = LedgerCap;
-
-
-// }
-
 /// A ledger device with the Nervos app constrained to a specific derivation path.
 #[derive(Clone)]
 pub struct LedgerCap {
@@ -792,20 +773,6 @@ bitflags::bitflags! {
         const MASK = Self::LAST_MARKER.bits | Self::NO_FALLBACK.bits | Self::IS_CONTEXT.bits;
     }
 }
-
-// impl AbstractPrivKey for LedgerCap {
-//     type Err = LedgerKeyStoreError;
-
-//     type SignerSingleShot = SignEntireHelper<LedgerClosure>;
-
-
-//     fn sign(&self, _message: &[u8]) -> Result<Signature, Self::Err> {
-//         unimplemented!("Need to generalize method to not take hash")
-//         // let signature = self.sign_recoverable(message)?;
-//         // Ok(RecoverableSignature::to_standard(&signature))
-//     }
-
-// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LedgerAccountJson {
