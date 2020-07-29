@@ -637,7 +637,7 @@ impl LedgerCap {
         }
     }
 
-    fn public_key_prompt(&self) -> Result<secp256k1::PublicKey, LedgerKeyStoreError> {
+    pub fn public_key_prompt(&self) -> Result<secp256k1::PublicKey, LedgerKeyStoreError> {
         let mut data = Vec::new();
         data.write_u8(self.path.as_ref().len() as u8)
             .expect(WRITE_ERR_MSG);

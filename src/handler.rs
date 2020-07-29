@@ -115,7 +115,7 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
         KeyStoreRequest::ExtendedPubkey { hash160, path, password: _ } => {
             let account = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
-            let public_key = account.extended_privkey(drv_path.as_ref())?.public_key()?;
+            let public_key = account.extended_privkey(drv_path.as_ref())?.public_key_prompt()?;
             Ok(PluginResponse::Bytes(JsonBytes::from_vec(public_key.serialize().to_vec())))
         }
         // DerivedKeySet {
