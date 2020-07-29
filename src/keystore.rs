@@ -421,113 +421,6 @@ impl LedgerMasterCap {
         return bip_path;
     }
 
-    pub fn sign_message_hash(
-        &self,
-        message: &[u8],
-        path_opt: Option<DerivationPath>,
-    ) -> Result<Signature, LedgerKeyStoreError> {
-        let my_self = self.clone();
-        assert!(message.len() > 0, "initial message must be non-empty");
-
-        let init_packet = LedgerMasterCap::derivation_path_to_bytes(path_opt);
-        let init_apdu = apdu::sign_message_hash(SignP1::FIRST.bits, init_packet);
-        let ledger_app =
-            my_self
-                .ledger_app
-                .as_ref()
-                .ok_or(LedgerKeyStoreError::LedgerNotFound {
-                    id: my_self.account.ledger_id.clone(),
-                })?;
-        let _ = ledger_app.exchange(&init_apdu);
-        let mut message_clone = message.clone();
-        let length = ::std::cmp::min(message.len(), MAX_APDU_SIZE);
-        let chunk = parse::split_off_at(&mut message_clone, length)?;
-        let p1 = SignP1::LAST_MARKER.bits;
-        let command = apdu::sign_message_hash(p1, chunk.to_vec());
-        let response = ledger_app.exchange(&command)?;
-        let raw_signature = response.data.clone();
-        let mut resp = &raw_signature[..];
-        let data = parse::split_off_at(&mut resp, 64)?;
-        let recovery_id = RecoveryId::from_i32(parse::split_first(&mut resp)? as i32)?;
-        parse::assert_nothing_left(resp)?;
-        let rec_sig = RecoverableSignature::from_compact(data, recovery_id)?;
-        // Convert to non-recoverable
-        return Ok(rec_sig.to_standard());
-    }
-
-    pub fn sign_message_recoverable(
-        &self,
-        message: &[u8],
-        path_opt: Option<DerivationPath>,
-        display_hex: bool,
-    ) -> Result<RecoverableSignature, LedgerKeyStoreError> {
-        return self.sign_message_impl(message, path_opt, display_hex);
-    }
-
-    pub fn sign_message(
-        &self,
-        message: &[u8],
-        path_opt: Option<DerivationPath>,
-        display_hex: bool,
-    ) -> Result<Signature, LedgerKeyStoreError> {
-        return self
-            .sign_message_impl(message, path_opt, display_hex)
-            .map(|rec_sig| rec_sig.to_standard());
-    }
-
-    fn sign_message_impl(
-        &self,
-        message: &[u8],
-        path_opt: Option<DerivationPath>,
-        display_hex: bool,
-    ) -> Result<RecoverableSignature, LedgerKeyStoreError> {
-        let message_vec: Vec<u8> = message.iter().cloned().collect();
-        let my_self = self.clone();
-        let chunk = |mut message: &[u8]| -> Result<_, LedgerKeyStoreError> {
-            assert!(message.len() > 0, "initial message must be non-empty");
-
-            let display_byte = vec![display_hex as u8];
-            let bip_path = LedgerMasterCap::derivation_path_to_bytes(path_opt);
-            let init_packet = [&display_byte[..], &bip_path[..]].concat();
-            let ledger_app =
-                my_self
-                    .ledger_app
-                    .as_ref()
-                    .ok_or(LedgerKeyStoreError::LedgerNotFound {
-                        id: my_self.account.ledger_id.clone(),
-                    })?;
-
-            let init_apdu = apdu::sign_message(SignP1::FIRST.bits, init_packet);
-            let _ = ledger_app.exchange(&init_apdu);
-
-            let mut base = SignP1::NEXT;
-            loop {
-                let length = ::std::cmp::min(message.len(), MAX_APDU_SIZE);
-                let chunk = parse::split_off_at(&mut message, length)?;
-                let rest_length = message.len();
-                let p1 = (if rest_length > 0 {
-                    base
-                } else {
-                    base | SignP1::LAST_MARKER
-                })
-                .bits;
-                let command = apdu::sign_message(p1, chunk.to_vec());
-                let response = ledger_app.exchange(&command)?;
-                if rest_length == 0 {
-                    return Ok(response);
-                }
-                base = SignP1::NEXT;
-            }
-        };
-        let response = chunk(message_vec.as_slice().as_ref())?;
-        let raw_signature = response.data.clone();
-        let mut resp = &raw_signature[..];
-        let data = parse::split_off_at(&mut resp, 64)?;
-        let recovery_id = RecoveryId::from_i32(parse::split_first(&mut resp)? as i32)?;
-        parse::assert_nothing_left(resp)?;
-        let rec_sig = RecoverableSignature::from_compact(data, recovery_id)?;
-        return Ok(rec_sig);
-    }
 
     pub fn extended_privkey(&self, path: &[ChildNumber]) -> Result<LedgerCap, LedgerKeyStoreError> {
         if !is_valid_derivation_path(path.as_ref()) {
@@ -750,6 +643,58 @@ impl LedgerCap {
 
         Ok(response.data)
     }
+
+    pub fn sign_message_recoverable(
+        &self,
+        message: &[u8],
+        display_hex: bool,
+    ) -> Result<RecoverableSignature, LedgerKeyStoreError> {
+        let message_vec: Vec<u8> = message.iter().cloned().collect();
+        let chunk = |mut message: &[u8]| -> Result<_, LedgerKeyStoreError> {
+            assert!(message.len() > 0, "initial message must be non-empty");
+
+            let display_byte = vec![display_hex as u8];
+            let bip_path = LedgerMasterCap::derivation_path_to_bytes(Some(self.path.clone()));
+            let init_packet = [&display_byte[..], &bip_path[..]].concat();
+            let ledger_app = self.master
+                    .ledger_app
+                    .as_ref()
+                    .ok_or(LedgerKeyStoreError::LedgerNotFound {
+                        id: self.master.account.ledger_id.clone(),
+                    })?;
+
+            let init_apdu = apdu::sign_message(SignP1::FIRST.bits, init_packet);
+            let _ = ledger_app.exchange(&init_apdu);
+
+            let mut base = SignP1::NEXT;
+            loop {
+                let length = ::std::cmp::min(message.len(), MAX_APDU_SIZE);
+                let chunk = parse::split_off_at(&mut message, length)?;
+                let rest_length = message.len();
+                let p1 = (if rest_length > 0 {
+                    base
+                } else {
+                    base | SignP1::LAST_MARKER
+                })
+                .bits;
+                let command = apdu::sign_message(p1, chunk.to_vec());
+                let response = ledger_app.exchange(&command)?;
+                if rest_length == 0 {
+                    return Ok(response);
+                }
+                base = SignP1::NEXT;
+            }
+        };
+        let response = chunk(message_vec.as_slice().as_ref())?;
+        let raw_signature = response.data.clone();
+        let mut resp = &raw_signature[..];
+        let data = parse::split_off_at(&mut resp, 64)?;
+        let recovery_id = RecoveryId::from_i32(parse::split_first(&mut resp)? as i32)?;
+        parse::assert_nothing_left(resp)?;
+        let rec_sig = RecoverableSignature::from_compact(data, recovery_id)?;
+        return Ok(rec_sig);
+    }
+
 }
 
 // Only not using impl trait because unstable
