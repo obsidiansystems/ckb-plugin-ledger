@@ -3,7 +3,7 @@ use ckb_types::{h160, H160, H256, bytes::Bytes};
 
 use ckb_cli_plugin_protocol::{
     JsonrpcError, JsonrpcRequest, JsonrpcResponse, KeyStoreRequest, PluginConfig, PluginRequest,
-    PluginResponse, PluginRole,
+    PluginResponse, PluginRole, SignTarget,
 };
 use ckb_sdk::wallet::{
     DerivationPath, DerivedKeySet
@@ -14,7 +14,7 @@ use std::convert::TryInto;
 use std::io::{self, Write};
 
 use crate::keystore::{
-    LedgerKeyStore, LedgerKeyStoreError, LedgerId, target_to_annotated_transaction
+    LedgerKeyStore, LedgerKeyStoreError, LedgerId, to_annotated_transaction
 };
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
@@ -178,15 +178,23 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             let account = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
             let ledger_cap = account.extended_privkey(drv_path.as_ref())?;
-            if recoverable {
-                let signature = ledger_cap.begin_sign_recoverable(target_to_annotated_transaction(*target))?;
-                Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
-            } else {
-                Ok(PluginResponse::Error(JsonrpcError {
-                    code: 0,
-                    message: String::from("Non recoverable signing not supported"),
-                    data: None,
-                }))
+            match *target {
+                // Transaction {
+                //     tx: Transaction,
+                //     inputs: Vec<Transaction>,
+                //     change_path: String,
+                // }
+                SignTarget::Transaction {tx, inputs, change_path} => {
+                    let signature = ledger_cap.begin_sign_recoverable(to_annotated_transaction(tx, inputs, change_path))?;
+                    Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
+                }
+                _ => {
+                    Ok(PluginResponse::Error(JsonrpcError {
+                        code: 0,
+                        message: String::from("Non recoverable signing not supported"),
+                        data: None,
+                    }))
+                }
             }
         }
         _ => {
