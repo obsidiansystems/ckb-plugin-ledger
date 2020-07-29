@@ -9,15 +9,12 @@ use std::sync::Arc;
 
 use bitflags;
 use byteorder::{BigEndian, WriteBytesExt};
-use either::Either;
 use log::debug;
-use secp256k1::{key::PublicKey, recovery::RecoverableSignature, recovery::RecoveryId, Signature};
+use secp256k1::{key::PublicKey, recovery::RecoverableSignature, recovery::RecoveryId};
 
 use ckb_types::{
     bytes::Bytes,
-    core::{ScriptHashType, TransactionBuilder, TransactionView},
-    packed::{self, Byte32, CellDep, CellInput, CellOutput, OutPoint, Script, WitnessArgs},
-    prelude::*,
+    packed::{self, WitnessArgs},
     H160, H256,
 };
 use ckb_jsonrpc_types::{

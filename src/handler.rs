@@ -1,17 +1,14 @@
 use std::str::FromStr;
-use ckb_types::{h160, H160, H256, bytes::Bytes};
+use ckb_types::{H256, bytes::Bytes};
 
 use ckb_cli_plugin_protocol::{
-    JsonrpcError, JsonrpcRequest, JsonrpcResponse, KeyStoreRequest, PluginConfig, PluginRequest,
+    JsonrpcError, KeyStoreRequest, PluginConfig, PluginRequest,
     PluginResponse, PluginRole, SignTarget,
 };
 use ckb_sdk::wallet::{
     DerivationPath, DerivedKeySet
 };
-use secp256k1::{key::PublicKey};
 use ckb_jsonrpc_types::JsonBytes;
-use std::convert::TryInto;
-use std::io::{self, Write};
 
 use crate::keystore::{
     LedgerKeyStore, LedgerKeyStoreError, LedgerId, to_annotated_transaction
