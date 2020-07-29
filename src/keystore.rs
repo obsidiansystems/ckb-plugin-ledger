@@ -355,11 +355,16 @@ impl LedgerMasterCap {
 
     pub fn get_extended_pubkey(
         &self,
-        path: &[ChildNumber],
+        path_input: &[ChildNumber],
     ) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
+        let path = if path_input.is_empty() {
+            DerivationPath::from_str("m/44'/309'/0'").unwrap()
+        } else {
+            path_input.as_ref().iter().cloned().collect()
+        };
         if !is_valid_derivation_path(path.as_ref()) {
             return Err(LedgerKeyStoreError::InvalidDerivationPath {
-                path: path.as_ref().iter().cloned().collect(),
+                path: path,
             });
         }
         let mut data = Vec::new();
@@ -398,7 +403,7 @@ impl LedgerMasterCap {
                     .expect("write must ok");
                 Fingerprint::from(&hash160::Hash::from_engine(engine)[0..4])
             },
-            child_number: path
+            child_number: path.as_ref()
                 .last()
                 .unwrap_or(&ChildNumber::Hardened { index: 0 })
                 .clone(),
@@ -421,8 +426,12 @@ impl LedgerMasterCap {
         return bip_path;
     }
 
-
-    pub fn extended_privkey(&self, path: &[ChildNumber]) -> Result<LedgerCap, LedgerKeyStoreError> {
+    pub fn extended_privkey(&self, path_input: &[ChildNumber]) -> Result<LedgerCap, LedgerKeyStoreError> {
+        let path = if path_input.is_empty() {
+            DerivationPath::from_str("m/44'/309'/0'").unwrap()
+        } else {
+            path_input.as_ref().iter().cloned().collect()
+        };
         if !is_valid_derivation_path(path.as_ref()) {
             return Err(LedgerKeyStoreError::InvalidDerivationPath {
                 path: path.as_ref().iter().cloned().collect(),
