@@ -100,6 +100,7 @@ impl LedgerKeyStore {
         lock_arg: &H160,
     ) -> Result<&LedgerMasterCap, LedgerKeyStoreError> {
         self.refresh_dir()?;
+        self.refresh()?;
         self.imported_accounts
             .get(lock_arg)
             .ok_or_else(|| LedgerKeyStoreError::LedgerAccountNotFound(lock_arg.clone()))
@@ -126,14 +127,11 @@ impl LedgerKeyStore {
 
         // We need to check for imported accounts first
         self.refresh_dir()?;
-
-        //TODO: Use new heartbeat() function in ledger-rs to keep track of unplugged ledgers
-        // and ledgers that the ckb-cli have "freed"
         let paths_to_ignore = self.paths.iter().cloned().collect();
         if let Ok(devices) = get_all_ledgers(paths_to_ignore) {
             for device in devices {
                 // If we are here, that means that the HID_Device contained within
-                // this device is not in self.discovered or self.imported_devices
+                // this 'device' is not in self.discovered or self.imported_devices
                 // If the resource IS held elsewhere, this could potentially cause bugs
 
                 let command = apdu::get_wallet_id();
@@ -155,7 +153,30 @@ impl LedgerKeyStore {
                     .find(|cap| cap.account.ledger_id.clone() == ledger_id);
                 match maybe_cap {
                     Some(cap) => {
-                        if cap.ledger_app.is_none() {
+                        if let Some(old_device) = cap.ledger_app.as_ref() {
+                            if old_device.hid_path() == device.hid_path() {
+                                panic!("Bad Bad Bad: 
+                                       2 different handles to the same resource have been used. 
+                                       This is known to cause bugs");
+                            } else {
+                                // A ledger has been taken out and put back in again
+                                // Remove the hid path of the current one
+                                let account = cap.account.clone();
+                                let existing_path = old_device.hid_path().clone();
+                                let new_path = device.hid_path().clone();
+                                self.paths.remove(&existing_path);
+                                self.paths.insert(new_path);
+                                self.imported_accounts.remove(&account.lock_arg);
+                                self.imported_accounts.insert(
+                                    account.lock_arg.clone(),
+                                    LedgerMasterCap {
+                                        account: account,
+                                        ledger_app: Some(Arc::new(device)),
+                                    },
+                                );
+                            } 
+                        } else {
+
                             let account = cap.account.clone();
                             self.paths.insert(device.hid_path());
                             self.imported_accounts.insert(
@@ -165,16 +186,10 @@ impl LedgerKeyStore {
                                     ledger_app: Some(Arc::new(device)),
                                 },
                             );
-                        } else {
-                            panic!(
-                                "Two different LedgerAppRaw were created for the same HID_Device. 
-                                This is known to cause buffer-based bugs when reading from that HID_Device. It
-                                could also be that two ledgers with the same WalletId are in use, or that 
-                                one ledger was taken out of a port plugged into a different port");
-                        }
+                        } 
                         ()
                     }
-                    _ => {
+                    None => {
                         self.add_to_discovered(ledger_id.clone(), device);
                         ()
                     }
