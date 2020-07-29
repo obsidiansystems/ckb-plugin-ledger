@@ -86,7 +86,7 @@ impl LedgerKeyStore {
     }
 
     pub fn list_accounts(&mut self) -> Vec <H160> {
-        if let Ok(()) = self.refresh() {
+        if let Ok(()) = self.refresh_dir() {
             self.imported_accounts.keys().cloned().collect()
         } else {
             Vec::<_>::new()
@@ -94,7 +94,7 @@ impl LedgerKeyStore {
     }
 
     pub fn has_account(&mut self, lock_arg: &H160) -> Result<bool, LedgerKeyStoreError> {
-        self.refresh()?;
+        self.refresh_dir()?;
         Ok(self.imported_accounts.contains_key(lock_arg))
     }
 
@@ -102,7 +102,7 @@ impl LedgerKeyStore {
         &mut self,
         lock_arg: &H160,
     ) -> Result<&LedgerMasterCap, LedgerKeyStoreError> {
-        self.refresh()?;
+        self.refresh_dir()?;
         self.imported_accounts
             .get(lock_arg)
             .ok_or_else(|| LedgerKeyStoreError::LedgerAccountNotFound(lock_arg.clone()))
