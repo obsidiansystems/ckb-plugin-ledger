@@ -216,13 +216,11 @@ impl LedgerKeyStore {
 
     pub fn discovered_devices<'a>(
         &'a mut self,
-    ) -> Result<Box<dyn Iterator<Item = LedgerId>>, LedgerKeyStoreError> {
+    ) -> Vec<LedgerId> {
         if let Ok(_) = self.refresh() {
-            let accounts: Vec<_> = self.discovered_devices.keys().cloned().collect();
-            Ok(Box::new(accounts.into_iter()))
+            self.discovered_devices.keys().cloned().collect()
         } else {
-            let accounts: Vec<LedgerId> = Vec::new();
-            Ok(Box::new(accounts.into_iter()))
+            Vec::new()
         }
     }
 
