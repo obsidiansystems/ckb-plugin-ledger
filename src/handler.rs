@@ -201,12 +201,14 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                 SignTarget::AnyData(to_sign) => {
                     sign_msg((&to_sign.as_bytes(), true))
                 }
-                SignTarget::AnyMessage( .. ) => {
-                    Ok(PluginResponse::Error(JsonrpcError {
-                        code: 0,
-                        message: String::from("Signing a hash (H256) is not supported with Ledger plugin"),
-                        data: None,
-                    }))
+                SignTarget::AnyMessage( h256 ) => {
+                    let signature = ledger_cap.sign_message_hash(&h256.as_bytes())?;
+                    let json_bytes = if recoverable {
+                        JsonBytes::from_vec(serialize_signature(&signature).to_vec())
+                    } else {
+                        JsonBytes::from_vec(signature.to_standard().serialize_compact().to_vec())
+                    };
+                    Ok(PluginResponse::Bytes(json_bytes))
                 }
             }
         }
