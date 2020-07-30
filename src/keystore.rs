@@ -122,6 +122,27 @@ impl LedgerKeyStore {
         self.discovered_devices.insert(ledger_id, Arc::new(device));
     }
 
+    fn remove_imported_ledger(&mut self, hid_path: String, ledger_id: LedgerId) {
+        self.paths.remove(&hid_path);
+        for (id, master_cap) in self.imported_accounts.clone() {
+            if master_cap.account.ledger_id.clone() == ledger_id {
+                self.imported_accounts.insert(id.clone(), LedgerMasterCap {
+                    account: master_cap.account.clone(),
+                    ledger_app : None,
+                });
+            }
+        }
+    }
+
+    fn reset_devices(&mut self) -> Result<(), LedgerKeyStoreError> {
+        // TODO: Make sure that this drops all of the ledgers, and make sure
+        // that dropping the ledgers results in their handles getting closed
+        self.discovered_devices.clear();
+        self.imported_accounts = HashMap::new();
+        self.paths = HashSet::new();
+        return self.refresh();
+    }
+
     fn refresh(&mut self) -> Result<(), LedgerKeyStoreError> {
         self.clear_discovered_devices();
 
@@ -130,9 +151,7 @@ impl LedgerKeyStore {
         let paths_to_ignore = self.paths.iter().cloned().collect();
         if let Ok(devices) = get_all_ledgers(paths_to_ignore) {
             for device in devices {
-                // If we are here, that means that the HID_Device contained within
-                // this 'device' is not in self.discovered or self.imported_devices
-                // If the resource IS held elsewhere, this could potentially cause bugs
+                eprintln!("PATH: {}", device.hid_path());
 
                 let command = apdu::get_wallet_id();
                 let response = device.exchange(&command)?;
@@ -147,6 +166,7 @@ impl LedgerKeyStore {
                 parse::assert_nothing_left(resp)?;
 
                 let ledger_id = LedgerId(H256::from_slice(raw_wallet_id).unwrap());
+                // Check if this id matches any of the imported accounts
                 let maybe_cap = self
                     .imported_accounts
                     .values()
@@ -155,18 +175,23 @@ impl LedgerKeyStore {
                     Some(cap) => {
                         if let Some(old_device) = cap.ledger_app.as_ref() {
                             if old_device.hid_path() == device.hid_path() {
-                                panic!("Bad Bad Bad: 
-                                       2 different handles to the same resource have been used. 
-                                       This is known to cause bugs");
+                                // Two devices with the same HID_PATH and the same wallet-id
+                                // This is bad because we have now written to both of them.
+                                // ledger-rs has problems when this occurs (the next exchange that
+                                // occur return the message from the previous exchange), so we wipe both from
+                                // our system, and start over.
+                                self.reset_devices();
+                                return Ok(());
                             } else {
                                 // A ledger has been taken out and put back in again
-                                // Remove the hid path of the current one
+                                // Update the account with the new HID_Device handle
                                 let account = cap.account.clone();
                                 let existing_path = old_device.hid_path().clone();
                                 let new_path = device.hid_path().clone();
                                 self.paths.remove(&existing_path);
-                                self.paths.insert(new_path);
                                 self.imported_accounts.remove(&account.lock_arg);
+
+                                self.paths.insert(new_path);
                                 self.imported_accounts.insert(
                                     account.lock_arg.clone(),
                                     LedgerMasterCap {
@@ -174,9 +199,8 @@ impl LedgerKeyStore {
                                         ledger_app: Some(Arc::new(device)),
                                     },
                                 );
-                            } 
+                            }
                         } else {
-
                             let account = cap.account.clone();
                             self.paths.insert(device.hid_path());
                             self.imported_accounts.insert(
@@ -186,7 +210,7 @@ impl LedgerKeyStore {
                                     ledger_app: Some(Arc::new(device)),
                                 },
                             );
-                        } 
+                        }
                         ()
                     }
                     None => {
