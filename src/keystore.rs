@@ -33,6 +33,7 @@ use serde::{Deserialize, Serialize};
 
 use ledger::get_all_ledgers;
 use ledger::TransportNativeHID as RawLedgerApp;
+use ledger::LedgerError as RawLedgerError;
 use ledger_apdu::APDUCommand;
 
 pub mod apdu;
@@ -122,18 +123,6 @@ impl LedgerKeyStore {
         self.discovered_devices.insert(ledger_id, Arc::new(device));
     }
 
-    fn remove_imported_ledger(&mut self, hid_path: String, ledger_id: LedgerId) {
-        self.paths.remove(&hid_path);
-        for (id, master_cap) in self.imported_accounts.clone() {
-            if master_cap.account.ledger_id.clone() == ledger_id {
-                self.imported_accounts.insert(id.clone(), LedgerMasterCap {
-                    account: master_cap.account.clone(),
-                    ledger_app : None,
-                });
-            }
-        }
-    }
-
     fn reset_devices(&mut self) -> Result<(), LedgerKeyStoreError> {
         // TODO: Make sure that this drops all of the ledgers, and make sure
         // that dropping the ledgers results in their handles getting closed
@@ -143,6 +132,57 @@ impl LedgerKeyStore {
         return self.refresh();
     }
 
+    fn match_device_to_account(&mut self, ledger_id: LedgerId, device: RawLedgerApp) -> () {
+        let maybe_cap = self
+            .imported_accounts
+            .values()
+            .find(|cap| cap.account.ledger_id.clone() == ledger_id);
+        match maybe_cap {
+            Some(cap) => {
+                // Does the existing account already have a handle to a ledger?
+                if let Some(old_device) = cap.ledger_app.as_ref() {
+                    if old_device.hid_path() == device.hid_path() {
+                        // Two devices with the same HID_PATH and the same wallet-id
+                        // This is bad because we have now written to both of them.
+                        // ledger-rs has problems when this occurs (the next exchange that
+                        // occur return the message from the previous exchange), so we wipe both from
+                        // our system, and start over.
+                        let _ = self.reset_devices();
+                    } else {
+                        // A ledger has been taken out and put back in again
+                        // Update the account with the new HID_Device handle
+                        let account = cap.account.clone();
+                        let existing_path = old_device.hid_path().clone();
+                        let new_path = device.hid_path().clone();
+                        self.paths.remove(&existing_path);
+                        self.imported_accounts.remove(&account.lock_arg);
+
+                        self.paths.insert(new_path);
+                        self.imported_accounts.insert(
+                            account.lock_arg.clone(),
+                            LedgerMasterCap {
+                                account: account,
+                                ledger_app: Some(Arc::new(device)),
+                            },
+                        );
+                    }
+                } else {
+                    let account = cap.account.clone();
+                    self.paths.insert(device.hid_path());
+                    self.imported_accounts.insert(
+                        account.lock_arg.clone(),
+                        LedgerMasterCap {
+                            account: account,
+                            ledger_app: Some(Arc::new(device)),
+                        },
+                    );
+                }
+            }
+            None => {
+                self.add_to_discovered(ledger_id.clone(), device);
+            }
+        };
+    }
     fn refresh(&mut self) -> Result<(), LedgerKeyStoreError> {
         self.clear_discovered_devices();
 
@@ -151,73 +191,31 @@ impl LedgerKeyStore {
         let paths_to_ignore = self.paths.iter().cloned().collect();
         if let Ok(devices) = get_all_ledgers(paths_to_ignore) {
             for device in devices {
-                eprintln!("PATH: {}", device.hid_path());
 
                 let command = apdu::get_wallet_id();
-                let response = device.exchange(&command)?;
+                let response = device.exchange(&command);
                 debug!("Nervos CKB Ledger app wallet id: {:02x?}", response);
 
-                let mut resp = &response.data[..];
-                // TODO: The ledger app gives us 64 bytes but we only use 32
-                // bytes. We should either limit how many the ledger app
-                // gives, or take all 64 bytes here.
-                let raw_wallet_id = parse::split_off_at(&mut resp, 32)?;
-                let _ = parse::split_off_at(&mut resp, 32)?;
-                parse::assert_nothing_left(resp)?;
+                match response {
+                    // This happens when a ledger is on a home screen. Instead of causing an
+                    // error, we just ignore this ledger
+                    Err(RawLedgerError::APDU(_)) => { } //ignore this error
 
-                let ledger_id = LedgerId(H256::from_slice(raw_wallet_id).unwrap());
-                // Check if this id matches any of the imported accounts
-                let maybe_cap = self
-                    .imported_accounts
-                    .values()
-                    .find(|cap| cap.account.ledger_id.clone() == ledger_id);
-                match maybe_cap {
-                    Some(cap) => {
-                        if let Some(old_device) = cap.ledger_app.as_ref() {
-                            if old_device.hid_path() == device.hid_path() {
-                                // Two devices with the same HID_PATH and the same wallet-id
-                                // This is bad because we have now written to both of them.
-                                // ledger-rs has problems when this occurs (the next exchange that
-                                // occur return the message from the previous exchange), so we wipe both from
-                                // our system, and start over.
-                                self.reset_devices();
-                                return Ok(());
-                            } else {
-                                // A ledger has been taken out and put back in again
-                                // Update the account with the new HID_Device handle
-                                let account = cap.account.clone();
-                                let existing_path = old_device.hid_path().clone();
-                                let new_path = device.hid_path().clone();
-                                self.paths.remove(&existing_path);
-                                self.imported_accounts.remove(&account.lock_arg);
+                    Err(err) => { return Err(LedgerKeyStoreError::RawLedgerError(err)) }
+                    Ok(response) => {
+                        let mut resp = &response.data[..];
+                        // TODO: The ledger app gives us 64 bytes but we only use 32
+                        // bytes. We should either limit how many the ledger app
+                        // gives, or take all 64 bytes here.
+                        let raw_wallet_id = parse::split_off_at(&mut resp, 32)?;
+                        let _ = parse::split_off_at(&mut resp, 32)?;
+                        parse::assert_nothing_left(resp)?;
 
-                                self.paths.insert(new_path);
-                                self.imported_accounts.insert(
-                                    account.lock_arg.clone(),
-                                    LedgerMasterCap {
-                                        account: account,
-                                        ledger_app: Some(Arc::new(device)),
-                                    },
-                                );
-                            }
-                        } else {
-                            let account = cap.account.clone();
-                            self.paths.insert(device.hid_path());
-                            self.imported_accounts.insert(
-                                account.lock_arg.clone(),
-                                LedgerMasterCap {
-                                    account: account,
-                                    ledger_app: Some(Arc::new(device)),
-                                },
-                            );
-                        }
-                        ()
+                        let ledger_id = LedgerId(H256::from_slice(raw_wallet_id).unwrap());
+                        // Check if this id matches any of the imported accounts
+                        self.match_device_to_account(ledger_id, device);
                     }
-                    None => {
-                        self.add_to_discovered(ledger_id.clone(), device);
-                        ()
-                    }
-                };
+                }
             }
         }
         Ok(())
