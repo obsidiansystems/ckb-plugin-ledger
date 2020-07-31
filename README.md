@@ -1,55 +1,103 @@
-# CKB-CLI Ledger Plugin
+# Ledger Plugin for CKB-CLI
 
-## Installation
+This plugin provides support of [Nervos Ledger app](https://github.com/obsidiansystems/ledger-app-nervos) for [`ckb-cli`](https://github.com/nervosnetwork/ckb-cli/)
 
-### Build by nix
+<!-- Are we planning to release a pre-built static executable ? -->
+
+To use this plugin it needs to be built from the source, and then installed in the `ckb-cli`
+
+## Building the plugin
+
+### Using nix-build
+
+You can build from source if you have Nix installed.
+<!-- Add nix installation instruction/command? -->
+
+``` sh
+$ git clone https://github.com/obsidiansystems/ckb-plugin-ledger.git
+$ cd ckb-plugin-ledger
+$ git checkout master
+$ nix-build
+```
+
+Once the `nix-build` command finishes it will print a path like this
+<!-- , and create a file named `result` which should not be deleted -->
 
 ```
-nix-build
-...
 /nix/store/x2vvbbvxq1wz4fqfp2ymb497jg3dh5vp-ckb-plugin-ledger
 ```
 
-Note the path mentioned after the nix-build succeeds and use it in the `plugin install` command of in `ckb-cli`.
+Append `/bin/ckb-plugin-ledger` to this path, and use it in the `plugin install` command of in `ckb-cli`.
 
+### Using cargo
+
+It is also possible to build the plugin without `nix` by using `cargo` command.
+
+``` sh
+$ git clone https://github.com/obsidiansystems/ckb-plugin-ledger.git
+$ cd ckb-plugin-ledger
+$ git checkout master
+$ cargo build
+```
+
+Use the output path of this command in the `plugin install` command
+```
+$ echo "$PWD/target/debug/ckb-plugin-ledger"
+```
+
+## Installing the plugin in ckb-cli
+
+Make sure you have the latest `ckb-cli` installed.
+
+Use the path obtained after building the plugin in the `--binary-path` argument
 
 ```
 CKB> plugin install --binary-path /nix/store/x2vvbbvxq1wz4fqfp2ymb497jg3dh5vp-ckb-plugin-ledger/bin/ckb-plugin-ledger
 CKB> plugin list
-- description: "It's a keystore for demo"
-  is_active: true
-  name: demo_keystore
+daemon: true
+description: Plugin for Ledger
+name: ledger_plugin
 ```
 
-### Using `cargo`
+## Importing Ledger account
 
-Useful for incremental compilation.
-Do `nix-shell --run cargo build` to create the build incrementally.
-And use the path of created binary to install the plugin in `ckb-cli`
+Use the `account list` command to see connected Ledger devices. Be sure to have the Nervos application open on the device, otherwise it will not be detected:
 
-## Debugging
+```
+CKB> account list
+- "#": 0
+  account-id: 0x9c6e60f3e812ef5c859bbc900f427bffe63294c5490f93e4e50beb688c0798bf
+  source: "[plugin]: ledger_plugin"
+```
 
-- Print to `stderr` using `eprintln`
-  This will always gets printed on the terminal, so its useful only during development work.
+The `account_id` shown is the public key hash for the path m/44'/309', which is the root Nervos path. the `account_id` will be
+used for ```<account-id>``` argument in the `account import-from-plugin` command as described below.
 
-- Use the `error!`, `warn!`, `info!`, `debug!` or `trace!` macros from `log` package
+Use the `account import --ledger <ledger_id>` command to import the account to the `ckb-cli`.
+You will receive a confirmation prompt on the device which should say `Import Account`.
+Confirm this to import the account. This operation will provide the extended public key of path `m/44'/309'/0'` to the `ckb-cli`.
 
-  The logging of these messages can be controlled in the runtime via environment variable `RUST_LOG`.
+```
+CKB> account import-from-plugin --account-id 0x9c6e60f3e812ef5c859bbc900f427bffe63294c5490f93e4e50beb688c0798bf
+address:
+  mainnet: ckb1qyqg64fqws0sdgrz2s7da2dzrlpq6plw9xcqhuexcr
+  testnet: ckt1qyqg64fqws0sdgrz2s7da2dzrlpq6plw9xcq2e8e5l
+lock_arg: 0x8d5520741f06a062543cdea9a21fc20d07ee29b0
+```
 
-  - To enable plugin's internal debug messages
-  
-  ```
-  RUST_LOG=ckb_plugin_ledger::=debug ./debug/ckb-cli
-  ```
+## Listing Ledger Accounts ###
 
-  - To enable `ckb-cli` JSON RPC debug messages
+If you have already imported the Ledger account, then `account list` command will instead give the account details.
+They will be shown even if the device is not connected.
 
-  ```
-  RUST_LOG=ckb_cli::plugin=debug ./debug/ckb-cli
-  ```
-  
-  - The above two can be combined like this
-  
-  ```
-  RUST_LOG=ckb_cli::plugin=debug,ckb_plugin_ledger::=debug ./debug/ckb-cli
-  ```
+``` sh
+CKB> account list
+- "#": 0
+  address:
+    mainnet: ckb1qyqg64fqws0sdgrz2s7da2dzrlpq6plw9xcqhuexcr
+    testnet: ckt1qyqg64fqws0sdgrz2s7da2dzrlpq6plw9xcq2e8e5l
+  has_ckb_root: false
+  lock_arg: 0x8d5520741f06a062543cdea9a21fc20d07ee29b0
+  lock_hash: 0xe8e5dbae54d1ae5257ea55c1fbc210ef5521e0707b0d59bfb17e9f344ef96b7f
+  source: "[plugin]: ledger_plugin"
+```
