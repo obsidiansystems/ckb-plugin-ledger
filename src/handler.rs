@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use ckb_types::{h160, H160};
+use ckb_types::{h160, H160, H256, bytes::Bytes};
 
 use ckb_cli_plugin_protocol::{
     JsonrpcError, JsonrpcRequest, JsonrpcResponse, KeyStoreRequest, PluginConfig, PluginRequest,
@@ -14,7 +14,7 @@ use std::convert::TryInto;
 use std::io::{self, Write};
 
 use crate::keystore::{
-    LedgerKeyStore, LedgerKeyStoreError, target_to_annotated_transaction
+    LedgerKeyStore, LedgerKeyStoreError, LedgerId, target_to_annotated_transaction
 };
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
@@ -52,8 +52,12 @@ pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<P
 fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) -> Result <PluginResponse, LedgerKeyStoreError> {
     match request {
         KeyStoreRequest::ListAccount => {
-            let accounts = keystore.list_accounts();
-            Ok(PluginResponse::H160Vec(accounts))
+            let ledger_ids = keystore.discovered_devices();
+            let lockargs = keystore.list_accounts();
+            let payload1: Vec<_> = ledger_ids.iter().map(|LedgerId (v)| ckb_jsonrpc_types::JsonBytes::from_bytes(Bytes::from(v.as_bytes().to_vec()))).collect();
+            let payload2 = lockargs.iter().map(|v| ckb_jsonrpc_types::JsonBytes::from_bytes(Bytes::from(v.as_bytes().to_vec()))).collect();
+            let payload = [payload1, payload2].concat();
+            Ok(PluginResponse::BytesVec(payload))
         }
         KeyStoreRequest::HasAccount(lock_arg) =>
             if let Ok (b) = keystore.has_account(&lock_arg) {
@@ -87,6 +91,15 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                 data: None,
             }))
         }
+        // ImportAccount {
+        //     account_id: JsonBytes,
+        //     password: Option<String>,
+        // },
+        KeyStoreRequest::ImportAccount { account_id, password: _ } => {
+            let ledger_id :H256 = H256::from_slice(&account_id.into_bytes()).unwrap();
+            let h160 = keystore.import_account(&LedgerId (ledger_id))?;
+            Ok(PluginResponse::H160(h160))
+        }
         KeyStoreRequest::Export { .. } => {
             Ok(PluginResponse::Error(JsonrpcError {
                 code: 0,
@@ -102,7 +115,7 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
         KeyStoreRequest::ExtendedPubkey { hash160, path, password: _ } => {
             let account = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
-            let public_key = account.extended_privkey(drv_path.as_ref())?.public_key()?;
+            let public_key = account.extended_privkey(drv_path.as_ref())?.public_key_prompt()?;
             Ok(PluginResponse::Bytes(JsonBytes::from_vec(public_key.serialize().to_vec())))
         }
         // DerivedKeySet {

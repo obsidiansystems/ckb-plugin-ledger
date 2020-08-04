@@ -19,9 +19,9 @@ ckb-util = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c0
 ckb-resource = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
 ckb-dao-utils = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
 
-ckb-sdk = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "62c19585e2243e056aa01189bc8146ab479013e9" }
-ckb-index = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "62c19585e2243e056aa01189bc8146ab479013e9" }
-ckb-cli-plugin-protocol = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "62c19585e2243e056aa01189bc8146ab479013e9" }
+ckb-sdk = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046eae364e41d8fe59216bb502d91453b6b" }
+ckb-index = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046eae364e41d8fe59216bb502d91453b6b" }
+ckb-cli-plugin-protocol = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046eae364e41d8fe59216bb502d91453b6b" }
 
 ledger-apdu = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "b7e27d51f76060f29cd0cc6a995e07b784aa5208"}
 ledger-transport-hid = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "b7e27d51f76060f29cd0cc6a995e07b784aa5208"}
