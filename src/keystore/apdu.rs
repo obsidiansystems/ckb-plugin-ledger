@@ -1,5 +1,6 @@
 use ledger_apdu::APDUCommand;
 
+#[allow(dead_code)]
 pub fn app_version() -> APDUCommand {
     APDUCommand {
         cla: 0x80,
@@ -10,6 +11,7 @@ pub fn app_version() -> APDUCommand {
     }
 }
 
+#[allow(dead_code)]
 pub fn app_git_hash() -> APDUCommand {
     APDUCommand {
         cla: 0x80,
@@ -30,6 +32,7 @@ pub fn extend_public_key(data: Vec<u8>) -> APDUCommand {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_extended_public_key(data: Vec<u8>) -> APDUCommand {
     APDUCommand {
         cla: 0x80,
@@ -73,6 +76,7 @@ pub fn sign_message(p1_byte: u8, vec: Vec<u8>) -> APDUCommand {
     }
 }
 
+#[allow(dead_code)]
 pub fn sign_message_hash(p1_byte: u8, vec: Vec<u8>) -> APDUCommand {
     APDUCommand {
         cla: 0x80,

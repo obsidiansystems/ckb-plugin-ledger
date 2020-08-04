@@ -9,15 +9,12 @@ use std::sync::Arc;
 
 use bitflags;
 use byteorder::{BigEndian, WriteBytesExt};
-use either::Either;
 use log::debug;
-use secp256k1::{key::PublicKey, recovery::RecoverableSignature, recovery::RecoveryId, Signature};
+use secp256k1::{key::PublicKey, recovery::RecoverableSignature, recovery::RecoveryId};
 
 use ckb_types::{
     bytes::Bytes,
-    core::{ScriptHashType, TransactionBuilder, TransactionView},
-    packed::{self, Byte32, CellDep, CellInput, CellOutput, OutPoint, Script, WitnessArgs},
-    prelude::*,
+    packed::{self, WitnessArgs},
     H160, H256,
 };
 use ckb_jsonrpc_types::{
@@ -349,64 +346,6 @@ impl LedgerMasterCap {
         }
     }
 
-    pub fn get_root_pubkey(&self) -> PublicKey {
-        return self.account.ext_pub_key_root.public_key;
-    }
-
-    pub fn get_extended_pubkey(
-        &self,
-        path: &[ChildNumber],
-    ) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
-        if !is_valid_derivation_path(path.as_ref()) {
-            return Err(LedgerKeyStoreError::InvalidDerivationPath {
-                path: path.as_ref().iter().cloned().collect(),
-            });
-        }
-        let mut data = Vec::new();
-        data.write_u8(path.as_ref().len() as u8)
-            .expect(WRITE_ERR_MSG);
-        for &child_num in path.as_ref().iter() {
-            data.write_u32::<BigEndian>(From::from(child_num))
-                .expect(WRITE_ERR_MSG);
-        }
-        let command = apdu::get_extended_public_key(data);
-        let ledger_app = self
-            .ledger_app
-            .as_ref()
-            .ok_or(LedgerKeyStoreError::LedgerNotFound {
-                id: self.account.ledger_id.clone(),
-            })?;
-        let response = ledger_app.exchange(&command)?;
-        debug!(
-            "Nervos CBK Ledger app extended pub key raw public key {:02x?} for path {:?}",
-            &response, &path
-        );
-        let mut resp = &response.data[..];
-        let len1 = parse::split_first(&mut resp)? as usize;
-        let raw_public_key = parse::split_off_at(&mut resp, len1)?;
-        let len2 = parse::split_first(&mut resp)? as usize;
-        let chain_code = parse::split_off_at(&mut resp, len2)?;
-        parse::assert_nothing_left(resp)?;
-        let public_key = PublicKey::from_slice(&raw_public_key)?;
-        let chain_code = ChainCode(chain_code.try_into().expect("chain_code is not 32 bytes"));
-        Ok(ExtendedPubKey {
-            depth: path.as_ref().len() as u8,
-            parent_fingerprint: {
-                let mut engine = hash160::Hash::engine();
-                engine
-                    .write_all(b"`parent_fingerprint` currently unused by Nervos.")
-                    .expect("write must ok");
-                Fingerprint::from(&hash160::Hash::from_engine(engine)[0..4])
-            },
-            child_number: path
-                .last()
-                .unwrap_or(&ChildNumber::Hardened { index: 0 })
-                .clone(),
-            public_key,
-            chain_code,
-        })
-    }
-
     fn derivation_path_to_bytes(path_opt: Option<DerivationPath>) -> Vec<u8> {
         let drv_path = path_opt.unwrap_or(DerivationPath::from_str("m/44'/309'/0'").unwrap());
         let mut bip_path = Vec::new();
@@ -496,40 +435,6 @@ pub struct LedgerCap {
 }
 
 impl LedgerCap {
-    // Tries to derive from extended_pubkey if possible
-    pub fn public_key(&self) -> Result<secp256k1::PublicKey, LedgerKeyStoreError> {
-        let account_root_path = DerivationPath::from_str("m/44'/309'/0'").unwrap();
-        if self.path == account_root_path {
-            Ok(self.master.account.ext_pub_key_root.public_key)
-        } else {
-            let my_path_v: Vec<ChildNumber> = self.path.clone().into();
-
-            // TODO: store account_id and get rid of hardcoded account here
-            let account_root_v: Vec<ChildNumber> = account_root_path.into();
-            let same_account = account_root_v
-                .iter()
-                .zip(my_path_v.iter())
-                .all(|(c1, c2)| c1 == c2);
-
-            let maybe_chain_index = if same_account && my_path_v.len() == 5 {
-                (if my_path_v[3] == ChildNumber::from(0) {
-                    Some(KeyChain::External)
-                } else if my_path_v[3] == ChildNumber::from(1) {
-                    Some(KeyChain::Change)
-                } else {
-                    None
-                })
-                .map(|c| (c, my_path_v[4]))
-            } else {
-                None
-            };
-            match maybe_chain_index {
-                Some((c, i)) => Ok(self.master.derive_extended_public_key(c, i).public_key),
-                None => self.public_key_prompt(),
-            }
-        }
-    }
-
     pub fn public_key_prompt(&self) -> Result<secp256k1::PublicKey, LedgerKeyStoreError> {
         let mut data = Vec::new();
         data.write_u8(self.path.as_ref().len() as u8)
@@ -633,14 +538,6 @@ impl LedgerCap {
             response.data.len()
         );
 
-        // let raw_signature = response.data.clone();
-        // let mut resp = &raw_signature[..];
-
-        // let data = parse::split_off_at(&mut resp, 64)?;
-        // let recovery_id = RecoveryId::from_i32(parse::split_first(&mut resp)? as i32)?;
-        // debug!("Recovery id is {:?}", recovery_id);
-        // parse::assert_nothing_left(resp)?;
-
         Ok(response.data)
     }
 
@@ -725,9 +622,6 @@ impl LedgerCap {
     }
 
 }
-
-// Only not using impl trait because unstable
-type LedgerClosure = Box<dyn FnOnce(Vec<u8>) -> Result<RecoverableSignature, LedgerKeyStoreError>>;
 
 const MAX_APDU_SIZE: usize = 230;
 
