@@ -3,7 +3,7 @@ use ckb_types::{h160, H160, H256, bytes::Bytes};
 
 use ckb_cli_plugin_protocol::{
     JsonrpcError, JsonrpcRequest, JsonrpcResponse, KeyStoreRequest, PluginConfig, PluginRequest,
-    PluginResponse, PluginRole,
+    PluginResponse, PluginRole, SignTarget,
 };
 use ckb_sdk::wallet::{
     DerivationPath, DerivedKeySet
@@ -14,7 +14,7 @@ use std::convert::TryInto;
 use std::io::{self, Write};
 
 use crate::keystore::{
-    LedgerKeyStore, LedgerKeyStoreError, LedgerId, target_to_annotated_transaction
+    LedgerKeyStore, LedgerKeyStoreError, LedgerId, to_annotated_transaction
 };
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
@@ -178,15 +178,38 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             let account = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
             let ledger_cap = account.extended_privkey(drv_path.as_ref())?;
-            if recoverable {
-                let signature = ledger_cap.begin_sign_recoverable(target_to_annotated_transaction(*target))?;
-                Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
-            } else {
-                Ok(PluginResponse::Error(JsonrpcError {
-                    code: 0,
-                    message: String::from("Non recoverable signing not supported"),
-                    data: None,
-                }))
+            let sign_msg = |(msg, display_hex)| -> Result <_, LedgerKeyStoreError> {
+                let magic_string = String::from("Nervos Message:");
+                let magic_bytes = magic_string.as_bytes();
+                let msg_with_magic = [magic_bytes, msg].concat();
+                let signature = ledger_cap.sign_message_recoverable(&msg_with_magic, display_hex)?;
+                let json_bytes = if recoverable {
+                    JsonBytes::from_vec(serialize_signature(&signature).to_vec())
+                } else {
+                    JsonBytes::from_vec(signature.to_standard().serialize_compact().to_vec())
+                };
+                Ok(PluginResponse::Bytes(json_bytes))
+            };
+            match *target {
+                SignTarget::Transaction {tx, inputs, change_path} => {
+                    let signature = ledger_cap.begin_sign_recoverable(to_annotated_transaction(tx, inputs, change_path))?;
+                    Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
+                }
+                SignTarget::AnyString(string) => {
+                    sign_msg((&string.as_bytes(), false))
+                }
+                SignTarget::AnyData(to_sign) => {
+                    sign_msg((&to_sign.as_bytes(), true))
+                }
+                SignTarget::AnyMessage( h256 ) => {
+                    let signature = ledger_cap.sign_message_hash(&h256.as_bytes())?;
+                    let json_bytes = if recoverable {
+                        JsonBytes::from_vec(serialize_signature(&signature).to_vec())
+                    } else {
+                        JsonBytes::from_vec(signature.to_standard().serialize_compact().to_vec())
+                    };
+                    Ok(PluginResponse::Bytes(json_bytes))
+                }
             }
         }
         _ => {
@@ -204,4 +227,12 @@ fn derived_key_set_to_response (v:DerivedKeySet) -> PluginResponse {
         external: v.external.into_iter().map(|(p, k)| (p.to_string(),k) ).collect(),
         change: v.change.into_iter().map(|(p, k)| (p.to_string(),k) ).collect(),
     }
+}
+
+pub fn serialize_signature(signature: &secp256k1::recovery::RecoverableSignature) -> [u8; 65] {
+    let (recov_id, data) = signature.serialize_compact();
+    let mut signature_bytes = [0u8; 65];
+    signature_bytes[0..64].copy_from_slice(&data[0..64]);
+    signature_bytes[64] = recov_id.to_i32() as u8;
+    signature_bytes
 }
