@@ -2,8 +2,6 @@
 
 This plugin provides support of [Nervos Ledger app](https://github.com/obsidiansystems/ledger-app-nervos) for [`ckb-cli`](https://github.com/nervosnetwork/ckb-cli/)
 
-<!-- Are we planning to release a pre-built static executable ? -->
-
 To use this plugin it needs to be built from the source, and then installed in the `ckb-cli`
 
 ## Building the plugin
@@ -70,10 +68,10 @@ CKB> account list
   source: "[plugin]: ledger_plugin"
 ```
 
-The `account_id` shown is the public key hash for the path m/44'/309', which is the root Nervos path. the `account_id` will be
+The `account-id` shown is the public key hash for the path m/44'/309', which is the root Nervos path. the `account-id` will be
 used for ```<account-id>``` argument in the `account import-from-plugin` command as described below.
 
-Use the `account import --ledger <ledger_id>` command to import the account to the `ckb-cli`.
+Use the `account import-from-plugin --account-id <account-id>` command to import the account to the `ckb-cli`.
 You will receive a confirmation prompt on the device which should say `Import Account`.
 Confirm this to import the account. This operation will provide the extended public key of path `m/44'/309'/0'` to the `ckb-cli`.
 
