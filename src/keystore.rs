@@ -193,7 +193,9 @@ impl LedgerKeyStore {
             for device in devices {
 
                 let command = apdu::get_wallet_id();
-                let response = device.exchange(&command);
+                // This timeout hack prevents a ledger on the homescreen in screensaver mode from blocking
+                // for 2.8 hours before failing
+                let response = device.exchange(&command, Some(2_000));
                 debug!("Nervos CKB Ledger app wallet id: {:02x?}", response);
 
                 match response {
@@ -272,7 +274,7 @@ impl LedgerKeyStore {
         self.paths.remove(&ledger_path);
         let bip_account_index = 0;
         let command = apdu::do_account_import(bip_account_index);
-        let response = ledger_app.exchange(&command)?;
+        let response = ledger_app.exchange(&command, None)?;
 
         debug!(
             "Nervos CBK Ledger app extended pub key raw public key {:02x?}",
@@ -488,7 +490,7 @@ impl LedgerCap {
                 .ok_or(LedgerKeyStoreError::LedgerNotFound {
                     id: self.master.account.ledger_id.clone(),
                 })?;
-        let response = ledger_app.exchange(&command)?;
+        let response = ledger_app.exchange(&command, None)?;
         debug!(
             "Nervos CBK Ledger app extended pub key raw public key {:02x?} for path {:?}",
             &response, &self.path
@@ -559,7 +561,7 @@ impl LedgerCap {
                         .bits,
                     p2: 0,
                     data: chunk.to_vec(),
-                })?;
+                }, None)?;
                 if rest_length == 0 {
                     return Ok(response);
                 }
@@ -598,7 +600,7 @@ impl LedgerCap {
                     })?;
 
             let init_apdu = apdu::sign_message(SignP1::FIRST.bits, init_packet);
-            let _ = ledger_app.exchange(&init_apdu);
+            let _ = ledger_app.exchange(&init_apdu, None);
 
             let mut base = SignP1::NEXT;
             loop {
@@ -612,7 +614,7 @@ impl LedgerCap {
                 })
                 .bits;
                 let command = apdu::sign_message(p1, chunk.to_vec());
-                let response = ledger_app.exchange(&command)?;
+                let response = ledger_app.exchange(&command, None)?;
                 if rest_length == 0 {
                     return Ok(response);
                 }
@@ -642,13 +644,13 @@ impl LedgerCap {
             .ok_or(LedgerKeyStoreError::LedgerNotFound {
                 id: self.master.account.ledger_id.clone(),
             })?;
-        let _ = ledger_app.exchange(&init_apdu);
+        let _ = ledger_app.exchange(&init_apdu, None);
         let mut message_clone = message.clone();
         let length = ::std::cmp::min(message.len(), MAX_APDU_SIZE);
         let chunk = parse::split_off_at(&mut message_clone, length)?;
         let p1 = SignP1::LAST_MARKER.bits;
         let command = apdu::sign_message_hash(p1, chunk.to_vec());
-        let response = ledger_app.exchange(&command)?;
+        let response = ledger_app.exchange(&command, None)?;
         let raw_signature = response.data.clone();
         let mut resp = &raw_signature[..];
         let data = parse::split_off_at(&mut resp, 64)?;
