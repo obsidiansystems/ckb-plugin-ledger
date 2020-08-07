@@ -23,8 +23,8 @@ ckb-sdk = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046e
 ckb-index = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046eae364e41d8fe59216bb502d91453b6b" }
 ckb-cli-plugin-protocol = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046eae364e41d8fe59216bb502d91453b6b" }
 
-ledger-apdu = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "b7e27d51f76060f29cd0cc6a995e07b784aa5208"}
-ledger-transport-hid = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "b7e27d51f76060f29cd0cc6a995e07b784aa5208"}
+ledger-apdu = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "c6cc445ab443cec0c0e094f94ce9a202f1481ff1"}
+ledger-transport-hid = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "c6cc445ab443cec0c0e094f94ce9a202f1481ff1"}
 
 bitflags = "1.2.1"
 bitcoin_hashes = "0.3.2"
