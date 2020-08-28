@@ -56,6 +56,14 @@ daemon: true
 description: Plugin for Ledger
 name: ledger_plugin
 ```
+It may be the case that you wish to reinstall an updated version of a plugin that has already been installed. To do this, you
+must first uninstall the older version of the plugin before installing the new one:
+```
+CKB> plugin uninstall --name ledger_plugin
+Plugin ledger_plugin uninstalled!
+CKB> plugin list
+[]
+```
 
 ## Importing Ledger account
 
