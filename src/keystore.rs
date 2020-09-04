@@ -538,6 +538,9 @@ impl LedgerCap {
             raw_message.as_slice().len()
         );
 
+        debug!(
+            "BEGINNING SIG: ");
+
         let chunk = |mut message: &[u8]| -> Result<_, LedgerKeyStoreError> {
             assert!(message.len() > 0, "initial message must be non-empty");
             let mut base = SignP1::FIRST;
@@ -550,6 +553,22 @@ impl LedgerCap {
                         id: self.master.account.ledger_id.clone(),
                     },
                 )?;
+
+                debug!(
+                    "APDU of {:?} ",
+                    &APDUCommand {
+                        cla: 0x80,
+                        ins: 0x03,
+                        p1: (if rest_length > 0 {
+                            base
+                        } else {
+                            base | SignP1::LAST_MARKER
+                        })
+                            .bits,
+                        p2: 0,
+                        data: chunk.to_vec(),
+                    });
+
                 let response = ledger_app.exchange(&APDUCommand {
                     cla: 0x80,
                     ins: 0x03,
