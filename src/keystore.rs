@@ -5,7 +5,6 @@ use std::fs;
 use std::io::prelude::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
-// use std::sync::Arc;
 
 use bitflags;
 use byteorder::{BigEndian, WriteBytesExt};
@@ -31,9 +30,9 @@ use ckb_sdk::wallet::{
 };
 use serde::{Deserialize, Serialize};
 
-use ledger::{ with_ledgers_select, with_ledgers};
+use ledger::{ with_ledger_matching, with_all_ledgers};
 use ledger::TransportNativeHID as RawLedgerApp;
-// use ledger::LedgerError as RawLedgerError;
+use ledger::LedgerError as RawLedgerError;
 use ledger_apdu::APDUCommand;
 
 pub mod apdu;
@@ -102,72 +101,21 @@ impl LedgerKeyStore {
             .ok_or_else(|| LedgerKeyStoreError::LedgerAccountNotFound(lock_arg.clone()))
     }
 
-    // fn match_device_to_account(&mut self, ledger_id: LedgerId, device: RawLedgerApp) -> () {
-    //     let maybe_cap = self
-    //         .imported_accounts
-    //         .values()
-    //         .find(|cap| cap.account.ledger_id.clone() == ledger_id);
-    //     match maybe_cap {
-    //         Some(cap) => {
-    //             // Does the existing account already have a handle to a ledger?
-    //             if let Some(old_device) = cap.ledger_app.as_ref() {
-    //                 if old_device.hid_path() == device.hid_path() {
-    //                     // Two devices with the same HID_PATH and the same wallet-id
-    //                     // This is bad because we have now written to both of them.
-    //                     // ledger-rs has problems when this occurs (the next exchange that
-    //                     // occur return the message from the previous exchange), so we wipe both from
-    //                     // our system, and start over.
-    //                     let _ = self.reset_devices();
-    //                 } else {
-    //                     // A ledger has been taken out and put back in again
-    //                     // Update the account with the new HID_Device handle
-    //                     let account = cap.account.clone();
-    //                     let existing_path = old_device.hid_path().clone();
-    //                     let new_path = device.hid_path().clone();
-    //                     self.paths.remove(&existing_path);
-    //                     self.imported_accounts.remove(&account.lock_arg);
-
-    //                     self.paths.insert(new_path);
-    //                     self.imported_accounts.insert(
-    //                         account.lock_arg.clone(),
-    //                         LedgerMasterCap {
-    //                             account: account,
-    //                             ledger_app: Some(Arc::new(device)),
-    //                         },
-    //                     );
-    //                 }
-    //             } else {
-    //                 let account = cap.account.clone();
-    //                 self.paths.insert(device.hid_path());
-    //                 self.imported_accounts.insert(
-    //                     account.lock_arg.clone(),
-    //                     LedgerMasterCap {
-    //                         account: account,
-    //                         ledger_app: Some(Arc::new(device)),
-    //                     },
-    //                 );
-    //             }
-    //         }
-    //         None => {
-    //             self.add_to_discovered(ledger_id.clone(), device);
-    //         }
-    //     };
-    // }
-
     fn wallet_id_filter(desired_ledger_id: &LedgerId) -> impl Fn(&mut RawLedgerApp) -> bool
     {
         let desired = desired_ledger_id.clone();
-        // TODO: This "move" is the only way i could get this to work, but i have no idea why
         return move |ledger| {
-            // let desired = desired_ledger_id.to_owned();
-            // TODO: Ignoring error
-            if let Ok(current_ledger_id) = LedgerKeyStore::query_ledger_id(ledger) {
-                return current_ledger_id == desired;
+            match LedgerKeyStore::query_ledger_id(ledger) {
+                Ok(current_ledger_id) => { current_ledger_id == desired }
+
+                // This usually happens when a ledger is on a home screen.
+                Err(LedgerKeyStoreError::RawLedgerError(RawLedgerError::APDU(_))) => { false }
+                Err(err) => {
+                    debug!("Ignoring the following error: {}", err);
+                    false
+                }
             }
-            else {
-                return false;
-            }
-        };
+        }
     }
 
     fn query_ledger_id(device: &mut RawLedgerApp) -> Result<LedgerId, LedgerKeyStoreError> {
@@ -188,45 +136,6 @@ impl LedgerKeyStore {
         });
 
     }
-    // fn refresh(&mut self) -> Result<(), LedgerKeyStoreError> {
-    //     self.clear_discovered_devices();
-
-    //     // We need to check for imported accounts first
-    //     self.refresh_dir()?;
-    //     let paths_to_ignore = self.paths.iter().cloned().collect();
-    //     if let Ok(devices) = get_all_ledgers(paths_to_ignore) {
-    //         for device in devices {
-
-    //             let command = apdu::get_wallet_id();
-    //             // This timeout hack prevents a ledger on the homescreen in screensaver mode from blocking
-    //             // for 2.8 hours before failing
-    //             let response = device.exchange(&command, Some(2_000));
-    //             debug!("Nervos CKB Ledger app wallet id: {:02x?}", response);
-
-    //             match response {
-    //                 // This happens when a ledger is on a home screen. Instead of causing an
-    //                 // error, we just ignore this ledger
-    //                 Err(RawLedgerError::APDU(_)) => { } //ignore this error
-
-    //                 Err(err) => { return Err(LedgerKeyStoreError::RawLedgerError(err)) }
-    //                 Ok(response) => {
-    //                     let mut resp = &response.data[..];
-    //                     // TODO: The ledger app gives us 64 bytes but we only use 32
-    //                     // bytes. We should either limit how many the ledger app
-    //                     // gives, or take all 64 bytes here.
-    //                     let raw_wallet_id = parse::split_off_at(&mut resp, 32)?;
-    //                     let _ = parse::split_off_at(&mut resp, 32)?;
-    //                     parse::assert_nothing_left(resp)?;
-
-    //                     let ledger_id = LedgerId(H256::from_slice(raw_wallet_id).unwrap());
-    //                     // Check if this id matches any of the imported accounts
-    //                     self.match_device_to_account(ledger_id, device);
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     Ok(())
-    // }
 
     fn refresh_dir(&mut self) -> Result<(), LedgerKeyStoreError> {
         for entry in fs::read_dir(&self.data_dir)? {
@@ -258,8 +167,8 @@ impl LedgerKeyStore {
         &'a mut self,
     ) -> Vec<LedgerId> {
         let mut discovered_ids = Vec::new();
-        let res = with_ledgers(&mut|mut ledger| {
-            // TODO: Ignoring error
+        let res = with_all_ledgers(&mut|mut ledger| {
+            // Note: Choosing to ignore the error here
             if let Ok(ledger_id) = LedgerKeyStore::query_ledger_id(&mut ledger) {
                 if !self.imported_accounts.values().any(|lmc| ledger_id == lmc.account.ledger_id ) {
                     discovered_ids.push(ledger_id);
@@ -267,7 +176,6 @@ impl LedgerKeyStore {
             }
             return Ok(());
         });
-        // return Ok(discovered_ids);
         return res.map_or(Vec::new(), |_| discovered_ids);
     }
 
@@ -276,7 +184,7 @@ impl LedgerKeyStore {
         account_id: LedgerId,
     ) -> Result<H160, LedgerKeyStoreError> {
         let get_ledger_with_id = LedgerKeyStore::wallet_id_filter(&account_id);
-        return with_ledgers_select(get_ledger_with_id, &mut|ledger_app| { 
+        let res = with_ledger_matching(get_ledger_with_id, &mut|ledger_app| { 
             let bip_account_index = 0;
             let command = apdu::do_account_import(bip_account_index);
             let response = ledger_app.exchange(&command, None)?;
@@ -326,6 +234,13 @@ impl LedgerKeyStore {
                 .map_err(|err| LedgerKeyStoreError::KeyStoreIOError(err))?;
             return Ok(lock_arg);
         });
+        match res {
+            // Convert this particular error
+            Err(LedgerKeyStoreError::RawLedgerError(RawLedgerError::DeviceNotFound)) => {
+                Err(LedgerKeyStoreError::LedgerNotFound{ id: account_id.clone()}) 
+            }
+            _ => res
+        }
     }
 }
 
@@ -476,7 +391,7 @@ impl LedgerCap {
     pub fn public_key_prompt(&self) -> Result<secp256k1::PublicKey, LedgerKeyStoreError> {
         let account_id = self.master.account.ledger_id.clone();
         let get_ledger_with_id = LedgerKeyStore::wallet_id_filter(&account_id);
-        return with_ledgers_select(get_ledger_with_id, &mut|ledger_app| { 
+        return with_ledger_matching(get_ledger_with_id, &mut|ledger_app| { 
             let mut data = Vec::new();
             data.write_u8(self.path.as_ref().len() as u8)
                 .expect(WRITE_ERR_MSG);
@@ -536,7 +451,7 @@ impl LedgerCap {
 
         let account_id = self.master.account.ledger_id.clone();
         let get_ledger_with_id = LedgerKeyStore::wallet_id_filter(&account_id);
-        return with_ledgers_select(get_ledger_with_id, &mut|ledger_app| { 
+        return with_ledger_matching(get_ledger_with_id, &mut|ledger_app| { 
             let chunk = |mut message: &[u8]| -> Result<_, LedgerKeyStoreError> {
                 assert!(message.len() > 0, "initial message must be non-empty");
                 let mut base = SignP1::FIRST;
@@ -582,7 +497,7 @@ impl LedgerCap {
     ) -> Result<RecoverableSignature, LedgerKeyStoreError> {
         let account_id = self.master.account.ledger_id.clone();
         let get_ledger_with_id = LedgerKeyStore::wallet_id_filter(&account_id);
-        return with_ledgers_select(get_ledger_with_id, &mut|ledger_app| { 
+        return with_ledger_matching(get_ledger_with_id, &mut|ledger_app| { 
             let message_vec: Vec<u8> = message.iter().cloned().collect();
             let chunk = |mut message: &[u8]| -> Result<_, LedgerKeyStoreError> {
                 assert!(message.len() > 0, "initial message must be non-empty");
@@ -630,7 +545,7 @@ impl LedgerCap {
         assert!(message.len() > 0, "initial message must be non-empty");
         let account_id = self.master.account.ledger_id.clone();
         let get_ledger_with_id = LedgerKeyStore::wallet_id_filter(&account_id);
-        return with_ledgers_select(get_ledger_with_id, &mut |ledger_app| { 
+        return with_ledger_matching(get_ledger_with_id, &mut |ledger_app| { 
             let init_packet = LedgerMasterCap::derivation_path_to_bytes(Some(self.path.clone()));
             let init_apdu = apdu::sign_message_hash(SignP1::FIRST.bits, init_packet);
             let _ = ledger_app.exchange(&init_apdu, None);
