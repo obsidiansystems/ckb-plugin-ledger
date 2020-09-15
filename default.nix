@@ -1,28 +1,21 @@
-{ pkgs ? import (builtins.fetchTarball { # 2020-02-13 (nixos-19.09)
-    url = "https://github.com/NixOS/nixpkgs/archive/e02fb6eaf70d4f6db37ce053edf79b731f13c838.tar.gz";
-    sha256 = "1dbjbak57vl7kcgpm1y1nm4s74gjfzpfgk33xskdxj9hjphi6mws";
-  }) {}
+{ pkgsFun ? import (import ./nix/nixpkgs/thunk.nix)
 
-, fetch ? { private ? false, fetchSubmodules ? false, owner, repo, rev, sha256, ... }:
-    if !fetchSubmodules && !private then builtins.fetchTarball {
-      url = "https://github.com/${owner}/${repo}/archive/${rev}.tar.gz"; inherit sha256;
-    } else (import <nixpkgs> {}).fetchFromGitHub {
-      inherit owner repo rev sha256 fetchSubmodules private;
-    }
-
-, rustOverlay ? import
-    "${fetch (builtins.fromJSON (builtins.readFile ./nix/nixpkgs-mozilla/github.json))}/rust-overlay.nix"
-    pkgs
-    pkgs
+, rustOverlay ? import "${import ./nix/nixpkgs-mozilla/thunk.nix}/rust-overlay.nix"
 
 # Rust manifest hash must be updated when rust-toolchain file changes.
-, rustPackages ? rustOverlay.rustChannelOf {
+, rustPackages ? pkgs.rustChannelOf {
     date = "2020-05-04";
     rustToolchain = ./rust-toolchain;
-    sha256 = "sha256-Pj5c6sufuY0IZg/NwiVUqOB0z85OlLDrGbWyYYk9tx4=";
+    sha256 = "07mp7n4n3cmm37mv152frv7p9q58ahjw5k8gcq48vfczrgm5qgiy";
   }
 
-, gitignoreNix ? fetch (builtins.fromJSON (builtins.readFile ./nix/gitignore.nix/github.json))
+, pkgs ? pkgsFun {
+    overlays = [
+      rustOverlay
+    ];
+  }
+
+, gitignoreNix ? import ./nix/gitignore.nix/thunk.nix
 
 }:
 
@@ -40,5 +33,5 @@ in rustPlatform.buildRustPackage {
   verifyCargoDeps = true;
 
   # Cargo hash must be updated when Cargo.lock file changes.
-  cargoSha256 = "1kp81vih2qnj1sicdbdx6p50cm2kkx0pxilhx9gi8b64zmrch82w";
+  cargoSha256 = "157wsh0h6lsbgqqcjy1d3lm3jzsahjz9bi084j35gyw0c0574192";
 }
