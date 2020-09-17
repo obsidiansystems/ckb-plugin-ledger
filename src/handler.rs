@@ -50,7 +50,7 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
     match request {
         KeyStoreRequest::ListAccount => {
             let ledger_ids = keystore.discovered_devices();
-            let lockargs = keystore.list_accounts();
+            let lockargs = keystore.list_accounts()?;
             let payload1: Vec<_> = ledger_ids.iter().map(|LedgerId (v)| ckb_jsonrpc_types::JsonBytes::from_bytes(Bytes::from(v.as_bytes().to_vec()))).collect();
             let payload2 = lockargs.iter().map(|v| ckb_jsonrpc_types::JsonBytes::from_bytes(Bytes::from(v.as_bytes().to_vec()))).collect();
             let payload = [payload1, payload2].concat();
