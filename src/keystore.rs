@@ -62,14 +62,14 @@ pub struct LedgerKeyStore {
     paths: HashSet<String>, // All the HID_Paths of every device we have a mutex for
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct LedgerImportedAccount {
     ledger_id: LedgerId,
     lock_arg: H160,
     ext_pub_key_root: ExtendedPubKey,
 }
 
-#[derive(Clone, Default, PartialEq, Eq, Hash, Debug)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 // TODO make contain actual id to distinguish between ledgers
 pub struct LedgerId(pub H256);
 
