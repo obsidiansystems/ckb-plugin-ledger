@@ -232,19 +232,12 @@ impl LedgerKeyStore {
                 let mut contents = String::new();
                 file.read_to_string(&mut contents)?;
                 let account = ledger_imported_account_from_json(&contents)?;
-                match self.imported_accounts.get(&account.lock_arg) {
-                    Some(_) => (),
-                    None => {
-                        self.imported_accounts.insert(
-                            account.lock_arg.clone(),
-                            LedgerMasterCap {
-                                account,
-                                ledger_app: None,
-                            },
-                        );
-                        ()
-                    }
-                }
+                self.imported_accounts
+                    .entry(account.lock_arg.clone())
+                    .or_insert(LedgerMasterCap {
+                        account,
+                        ledger_app: None,
+                    });
             }
         }
         Ok(())
