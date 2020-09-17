@@ -1,6 +1,7 @@
 use ckb_cli_plugin_protocol::{
     JsonrpcRequest, JsonrpcResponse,
 };
+use log::debug;
 use std::convert::TryInto;
 use std::fs;
 use std::io::{self, Write};
@@ -15,6 +16,7 @@ mod keystore;
 
 fn main() {
     env_logger::init();
+    debug!("ledger plugin started");
     let mut keystore = get_ledger_key_store().unwrap();
     loop {
         let mut line = String::new();
