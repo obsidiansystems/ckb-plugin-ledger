@@ -1,14 +1,10 @@
-use ckb_cli_plugin_protocol::{
-    JsonrpcRequest, JsonrpcResponse,
-};
+use ckb_cli_plugin_protocol::{JsonrpcRequest, JsonrpcResponse};
 use std::convert::TryInto;
 use std::fs;
 use std::io::{self, Write};
 
 use crate::handler::handle;
-use crate::keystore::{
-    LedgerKeyStore,
-};
+use crate::keystore::LedgerKeyStore;
 
 mod handler;
 mod keystore;

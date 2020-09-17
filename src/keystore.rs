@@ -12,28 +12,26 @@ use byteorder::{BigEndian, WriteBytesExt};
 use log::debug;
 use secp256k1::{key::PublicKey, recovery::RecoverableSignature, recovery::RecoveryId};
 
+use ckb_jsonrpc_types::Transaction;
 use ckb_types::{
     bytes::Bytes,
     packed::{self, WitnessArgs},
     H160, H256,
-};
-use ckb_jsonrpc_types::{
-    Transaction
 };
 
 use bitcoin_hashes::{hash160, Hash};
 use ckb_crypto::secp::SECP256K1;
 use ckb_hash::blake2b_256;
 
-use ckb_sdk::constants::{SECP_SIGNATURE_SIZE};
+use ckb_sdk::constants::SECP_SIGNATURE_SIZE;
 use ckb_sdk::wallet::{
-    ChildNumber, DerivationPath, DerivedKeySet, ExtendedPubKey, Fingerprint, KeyChain, ChainCode
+    ChainCode, ChildNumber, DerivationPath, DerivedKeySet, ExtendedPubKey, Fingerprint, KeyChain,
 };
 use serde::{Deserialize, Serialize};
 
 use ledger::get_all_ledgers;
-use ledger::TransportNativeHID as RawLedgerApp;
 use ledger::LedgerError as RawLedgerError;
+use ledger::TransportNativeHID as RawLedgerApp;
 use ledger_apdu::APDUCommand;
 
 pub mod apdu;
@@ -83,7 +81,7 @@ impl LedgerKeyStore {
         }
     }
 
-    pub fn list_accounts(&mut self) -> Vec <H160> {
+    pub fn list_accounts(&mut self) -> Vec<H160> {
         if let Ok(()) = self.refresh_dir() {
             self.imported_accounts.keys().cloned().collect()
         } else {
@@ -191,7 +189,6 @@ impl LedgerKeyStore {
         let paths_to_ignore = self.paths.iter().cloned().collect();
         if let Ok(devices) = get_all_ledgers(paths_to_ignore) {
             for device in devices {
-
                 let command = apdu::get_wallet_id();
                 // This timeout hack prevents a ledger on the homescreen in screensaver mode from blocking
                 // for 2.8 hours before failing
@@ -201,9 +198,9 @@ impl LedgerKeyStore {
                 match response {
                     // This happens when a ledger is on a home screen. Instead of causing an
                     // error, we just ignore this ledger
-                    Err(RawLedgerError::APDU(_)) => { } //ignore this error
+                    Err(RawLedgerError::APDU(_)) => {} //ignore this error
 
-                    Err(err) => { return Err(LedgerKeyStoreError::RawLedgerError(err)) }
+                    Err(err) => return Err(LedgerKeyStoreError::RawLedgerError(err)),
                     Ok(response) => {
                         let mut resp = &response.data[..];
                         // TODO: The ledger app gives us 64 bytes but we only use 32
@@ -250,9 +247,7 @@ impl LedgerKeyStore {
         Ok(())
     }
 
-    pub fn discovered_devices<'a>(
-        &'a mut self,
-    ) -> Vec<LedgerId> {
+    pub fn discovered_devices<'a>(&'a mut self) -> Vec<LedgerId> {
         if let Ok(_) = self.refresh() {
             self.discovered_devices.keys().cloned().collect()
         } else {
@@ -325,7 +320,6 @@ impl LedgerKeyStore {
             .map_err(|err| LedgerKeyStoreError::KeyStoreIOError(err))?;
         Ok(lock_arg)
     }
-
 }
 
 /// A ledger device with the Nervos app.
@@ -399,7 +393,6 @@ impl LedgerMasterCap {
         return bip_path;
     }
 
-
     pub fn extended_privkey(&self, path: &[ChildNumber]) -> Result<LedgerCap, LedgerKeyStoreError> {
         if !is_valid_derivation_path(path.as_ref()) {
             return Err(LedgerKeyStoreError::InvalidDerivationPath {
@@ -460,7 +453,9 @@ impl LedgerMasterCap {
                 });
             }
         }
-        Err(LedgerKeyStoreError::SearchDerivedAddrFailed(change_last.clone()))
+        Err(LedgerKeyStoreError::SearchDerivedAddrFailed(
+            change_last.clone(),
+        ))
     }
 }
 
@@ -501,9 +496,10 @@ impl LedgerCap {
         Ok(PublicKey::from_slice(&raw_public_key)?)
     }
 
-    pub fn begin_sign_recoverable(&self, tx: AnnotatedTransaction)
-                              -> Result<Vec<u8>, LedgerKeyStoreError> {
-
+    pub fn begin_sign_recoverable(
+        &self,
+        tx: AnnotatedTransaction,
+    ) -> Result<Vec<u8>, LedgerKeyStoreError> {
         // Need to fill in missing “path” from signer.
         let mut raw_path = Vec::<Uint32>::new();
         for &child_num in self.path.as_ref().iter() {
@@ -538,36 +534,40 @@ impl LedgerCap {
             raw_message.as_slice().len()
         );
 
-        let chunk = |mut message: &[u8]| -> Result<_, LedgerKeyStoreError> {
-            assert!(message.len() > 0, "initial message must be non-empty");
-            let mut base = SignP1::FIRST;
-            loop {
-                let length = ::std::cmp::min(message.len(), MAX_APDU_SIZE);
-                let chunk = parse::split_off_at(&mut message, length)?;
-                let rest_length = message.len();
-                let ledger_app = self.master.ledger_app.as_ref().ok_or(
-                    LedgerKeyStoreError::LedgerNotFound {
-                        id: self.master.account.ledger_id.clone(),
-                    },
-                )?;
-                let response = ledger_app.exchange(&APDUCommand {
-                    cla: 0x80,
-                    ins: 0x03,
-                    p1: (if rest_length > 0 {
-                        base
-                    } else {
-                        base | SignP1::LAST_MARKER
-                    })
-                        .bits,
-                    p2: 0,
-                    data: chunk.to_vec(),
-                }, None)?;
-                if rest_length == 0 {
-                    return Ok(response);
+        let chunk =
+            |mut message: &[u8]| -> Result<_, LedgerKeyStoreError> {
+                assert!(message.len() > 0, "initial message must be non-empty");
+                let mut base = SignP1::FIRST;
+                loop {
+                    let length = ::std::cmp::min(message.len(), MAX_APDU_SIZE);
+                    let chunk = parse::split_off_at(&mut message, length)?;
+                    let rest_length = message.len();
+                    let ledger_app = self.master.ledger_app.as_ref().ok_or(
+                        LedgerKeyStoreError::LedgerNotFound {
+                            id: self.master.account.ledger_id.clone(),
+                        },
+                    )?;
+                    let response = ledger_app.exchange(
+                        &APDUCommand {
+                            cla: 0x80,
+                            ins: 0x03,
+                            p1: (if rest_length > 0 {
+                                base
+                            } else {
+                                base | SignP1::LAST_MARKER
+                            })
+                            .bits,
+                            p2: 0,
+                            data: chunk.to_vec(),
+                        },
+                        None,
+                    )?;
+                    if rest_length == 0 {
+                        return Ok(response);
+                    }
+                    base = SignP1::NEXT;
                 }
-                base = SignP1::NEXT;
-            }
-        };
+            };
 
         let response = chunk(raw_message.as_slice().as_ref())?;
 
@@ -592,7 +592,8 @@ impl LedgerCap {
             let display_byte = vec![display_hex as u8];
             let bip_path = LedgerMasterCap::derivation_path_to_bytes(Some(self.path.clone()));
             let init_packet = [&display_byte[..], &bip_path[..]].concat();
-            let ledger_app = self.master
+            let ledger_app =
+                self.master
                     .ledger_app
                     .as_ref()
                     .ok_or(LedgerKeyStoreError::LedgerNotFound {
@@ -638,12 +639,13 @@ impl LedgerCap {
         assert!(message.len() > 0, "initial message must be non-empty");
         let init_packet = LedgerMasterCap::derivation_path_to_bytes(Some(self.path.clone()));
         let init_apdu = apdu::sign_message_hash(SignP1::FIRST.bits, init_packet);
-        let ledger_app = self.master
-            .ledger_app
-            .as_ref()
-            .ok_or(LedgerKeyStoreError::LedgerNotFound {
-                id: self.master.account.ledger_id.clone(),
-            })?;
+        let ledger_app =
+            self.master
+                .ledger_app
+                .as_ref()
+                .ok_or(LedgerKeyStoreError::LedgerNotFound {
+                    id: self.master.account.ledger_id.clone(),
+                })?;
         let _ = ledger_app.exchange(&init_apdu, None);
         let mut message_clone = message.clone();
         let length = ::std::cmp::min(message.len(), MAX_APDU_SIZE);
@@ -659,7 +661,6 @@ impl LedgerCap {
         let rec_sig = RecoverableSignature::from_compact(data, recovery_id)?;
         return Ok(rec_sig);
     }
-
 }
 
 const MAX_APDU_SIZE: usize = 230;
@@ -756,12 +757,14 @@ fn is_valid_derivation_path(path: &[ChildNumber]) -> bool {
         .all(|(x, y)| x == Some(y))
 }
 
-pub fn to_annotated_transaction (tx: Transaction, inputs: Vec<Transaction>, change_path: String)
-                                 -> AnnotatedTransaction {
+pub fn to_annotated_transaction(
+    tx: Transaction,
+    inputs: Vec<Transaction>,
+    change_path: String,
+) -> AnnotatedTransaction {
     let mut annotated_inputs = Vec::new();
     let input_count_bytes = tx.inputs.len().to_le_bytes();
-    for (transaction, input) in inputs.into_iter().zip(tx.inputs.into_iter())
-    {
+    for (transaction, input) in inputs.into_iter().zip(tx.inputs.into_iter()) {
         annotated_inputs.push(
             packed::AnnotatedCellInput::new_builder()
                 .input(From::from(input))
@@ -770,10 +773,25 @@ pub fn to_annotated_transaction (tx: Transaction, inputs: Vec<Transaction>, chan
         );
     }
 
-    let cell_deps = tx.cell_deps.iter().cloned().map(From::from).collect::<Vec<_>>();
+    let cell_deps = tx
+        .cell_deps
+        .iter()
+        .cloned()
+        .map(From::from)
+        .collect::<Vec<_>>();
     let header_deps = tx.header_deps.iter().map(Pack::pack).collect::<Vec<_>>();
-    let outputs = tx.outputs.iter().cloned().map(From::from).collect::<Vec<_>>();
-    let outputs_data = tx.outputs_data.iter().cloned().map(From::from).collect::<Vec<_>>();
+    let outputs = tx
+        .outputs
+        .iter()
+        .cloned()
+        .map(From::from)
+        .collect::<Vec<_>>();
+    let outputs_data = tx
+        .outputs_data
+        .iter()
+        .cloned()
+        .map(From::from)
+        .collect::<Vec<_>>();
     let raw_tx = packed::AnnotatedRawTransaction::new_builder()
         .version(tx.version.pack())
         .cell_deps(packed::CellDepVec::new_builder().set(cell_deps).build())
@@ -798,7 +816,11 @@ pub fn to_annotated_transaction (tx: Transaction, inputs: Vec<Transaction>, chan
 
     // Ignore the root change path, which is the default value sent when change is not specified
     if change_path != "m" {
-        for &child_num in DerivationPath::from_str(&change_path).unwrap().as_ref().iter() {
+        for &child_num in DerivationPath::from_str(&change_path)
+            .unwrap()
+            .as_ref()
+            .iter()
+        {
             let raw_child_num: u32 = child_num.into();
             let raw_change_path_bytes = raw_child_num.to_le_bytes();
             raw_change_path.push(
@@ -820,7 +842,11 @@ pub fn to_annotated_transaction (tx: Transaction, inputs: Vec<Transaction>, chan
             .build();
         vec![init_witness.as_bytes().pack()]
     } else {
-        tx.witnesses.iter().cloned().map(From::from).collect::<Vec<_>>()
+        tx.witnesses
+            .iter()
+            .cloned()
+            .map(From::from)
+            .collect::<Vec<_>>()
     };
 
     packed::AnnotatedTransaction::new_builder()
