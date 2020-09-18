@@ -94,7 +94,7 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
         // },
         KeyStoreRequest::ImportAccount { account_id, password: _ } => {
             let ledger_id :H256 = H256::from_slice(&account_id.into_bytes()).unwrap();
-            let h160 = keystore.import_account(&LedgerId (ledger_id))?;
+            let h160 = keystore.import_account(LedgerId (ledger_id))?;
             Ok(PluginResponse::H160(h160))
         }
         KeyStoreRequest::Export { .. } => {
