@@ -57,14 +57,14 @@ pub struct LedgerKeyStore {
     imported_accounts: HashMap<H160, LedgerMasterCap>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct LedgerImportedAccount {
     ledger_id: LedgerId,
     lock_arg: H160,
     ext_pub_key_root: ExtendedPubKey,
 }
 
-#[derive(Clone, Default, PartialEq, Eq, Hash, Debug)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 // TODO make contain actual id to distinguish between ledgers
 pub struct LedgerId(pub H256);
 
@@ -76,12 +76,9 @@ impl LedgerKeyStore {
         }
     }
 
-    pub fn list_accounts(&mut self) -> Vec<H160> {
-        if let Ok(()) = self.refresh_dir() {
-            self.imported_accounts.keys().cloned().collect()
-        } else {
-            Vec::<_>::new()
-        }
+    pub fn list_accounts(&mut self) -> Result<Vec<H160>, LedgerKeyStoreError> {
+        self.refresh_dir()?;
+        Ok(self.imported_accounts.keys().cloned().collect())
     }
 
     pub fn has_account(&mut self, lock_arg: &H160) -> Result<bool, LedgerKeyStoreError> {
@@ -143,15 +140,12 @@ impl LedgerKeyStore {
                 let mut file = fs::File::open(&path)?;
                 let mut contents = String::new();
                 file.read_to_string(&mut contents)?;
-                let account = ledger_imported_account_from_json(&contents)?;
-                match self.imported_accounts.get(&account.lock_arg) {
-                    Some(_) => (),
-                    None => {
-                        self.imported_accounts
-                            .insert(account.lock_arg.clone(), LedgerMasterCap { account });
-                        ()
-                    }
-                }
+                let account_or_err = ledger_imported_account_from_json(&contents);
+                debug!("{:?}", account_or_err);
+                let account = account_or_err?;
+                self.imported_accounts
+                    .entry(account.lock_arg.clone())
+                    .or_insert(LedgerMasterCap { account });
             }
         }
         Ok(())
