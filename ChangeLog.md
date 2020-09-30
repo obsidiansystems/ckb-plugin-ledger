@@ -1,6 +1,6 @@
 # Revision history for `ckb-plugin-ledger`
 
-## v0.2.0 - 2020-09-29
+## v0.2.0 - 2020-09-30
 
 ### Release Notes
 - Improve support with multiple ledgers, and mid-operation unplugged ledgers.
