@@ -239,6 +239,31 @@ pub struct LedgerMasterCap {
 }
 
 impl LedgerMasterCap {
+    pub fn public_key_to_lock_arg(pubkey: secp256k1::key::PublicKey) -> H160 {
+        H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20]).expect("Generate hash(H160) from pubkey failed")
+    }
+
+    pub fn parse_path_as_keychain_and_index(path: &DerivationPath) -> Option<(KeyChain, ChildNumber)> {
+        let chain = path.into_iter().nth(3)?;
+        let keychain = match chain {
+            ChildNumber::Normal{ index: 0 } => Some(KeyChain::External),
+            ChildNumber::Normal{ index: 1 } => Some(KeyChain::Change),
+            _ => None,
+        }?;
+        let index = path.into_iter().nth(4)?;
+        Some((keychain, index.clone()))
+    }
+
+    pub fn derive_public_key(
+        &self,
+        path: &DerivationPath
+    ) -> Result<secp256k1::key::PublicKey, LedgerKeyStoreError> {
+        match Self::parse_path_as_keychain_and_index(path) {
+            Some((keychain, index)) => Ok(self.derive_extended_public_key(keychain, index).public_key),
+            None => Err(LedgerKeyStoreError::InvalidDerivationPath { path: path.clone() }),
+        }
+    }
+
     pub fn derive_extended_public_key(
         &self,
         chain: KeyChain,
@@ -655,16 +680,18 @@ fn is_valid_derivation_path(path: &[ChildNumber]) -> bool {
 
 pub fn to_annotated_transaction(
     tx: Transaction,
-    inputs: Vec<Transaction>,
+    input_txs: Vec<Transaction>,
+    signing_lock_arg: H160,
     change_path: String,
 ) -> AnnotatedTransaction {
     let input_count_bytes = tx.inputs.len().to_le_bytes();
-    let annotated_inputs = inputs
-        .into_iter()
-        .zip(tx.inputs.into_iter())
+    let num_inputs = tx.inputs.len();
+    let annotated_inputs = input_txs
+        .iter()
+        .zip(tx.inputs.iter())
         .map(|(transaction, input)|
             packed::AnnotatedCellInput::new_builder()
-                .input(From::from(input))
+                .input(From::from(input.clone()))
                 .source(packed::Transaction::from(transaction.clone()).raw())
                 .build()
         ).collect::<Vec<_>>();
@@ -735,9 +762,20 @@ pub fn to_annotated_transaction(
             .build();
         vec![init_witness.as_bytes().pack()]
     } else {
+        let signing_lock_arg_json_bytes = match signing_lock_arg {
+            H160(arr) => ckb_jsonrpc_types::JsonBytes::from_vec(arr.to_vec()),
+        };
         tx.witnesses
             .iter()
             .cloned()
+            .zip(tx.inputs.iter())
+            .zip(input_txs.iter())
+            .filter_map(|((witness, input), input_tx)|
+                if input_tx.outputs[input.previous_output.index.value() as u32 as usize].lock.args == signing_lock_arg_json_bytes
+                { Some(witness) }
+                else
+                { None })
+            .chain(tx.witnesses.iter().skip(num_inputs).cloned())
             .map(From::from)
             .collect::<Vec<_>>()
     };
