@@ -658,16 +658,16 @@ pub fn to_annotated_transaction(
     inputs: Vec<Transaction>,
     change_path: String,
 ) -> AnnotatedTransaction {
-    let mut annotated_inputs = Vec::new();
     let input_count_bytes = tx.inputs.len().to_le_bytes();
-    for (transaction, input) in inputs.into_iter().zip(tx.inputs.into_iter()) {
-        annotated_inputs.push(
+    let annotated_inputs = inputs
+        .into_iter()
+        .zip(tx.inputs.into_iter())
+        .map(|(transaction, input)|
             packed::AnnotatedCellInput::new_builder()
                 .input(From::from(input))
                 .source(packed::Transaction::from(transaction.clone()).raw())
-                .build(),
-        );
-    }
+                .build()
+        ).collect::<Vec<_>>();
 
     let cell_deps = tx
         .cell_deps
@@ -708,27 +708,24 @@ pub fn to_annotated_transaction(
         .nth3(input_count_bytes[3].into())
         .build();
 
-    let mut raw_change_path = Vec::<packed::Uint32>::new();
-
     // Ignore the root change path, which is the default value sent when change is not specified
-    if change_path != "m" {
-        for &child_num in DerivationPath::from_str(&change_path)
+    let raw_change_path = if change_path == "m" { Vec::<packed::Uint32>::new() } else {
+        DerivationPath::from_str(&change_path)
             .unwrap()
             .as_ref()
             .iter()
-        {
-            let raw_child_num: u32 = child_num.into();
-            let raw_change_path_bytes = raw_child_num.to_le_bytes();
-            raw_change_path.push(
+            .map(|&child_num| {
+                let raw_child_num: u32 = child_num.into();
+                let raw_change_path_bytes = raw_child_num.to_le_bytes();
                 packed::Uint32::new_builder()
                     .nth0(raw_change_path_bytes[0].into())
                     .nth1(raw_change_path_bytes[1].into())
                     .nth2(raw_change_path_bytes[2].into())
                     .nth3(raw_change_path_bytes[3].into())
-                    .build(),
-            )
-        }
-    };
+                    .build()
+            })
+            .collect::<Vec<packed::Uint32>>()
+        };
 
     let witnesses_vec = if tx.witnesses.is_empty() {
         eprintln!("witnesses_vec is empty!!");
