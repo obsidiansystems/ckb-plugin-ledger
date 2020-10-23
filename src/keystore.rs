@@ -232,6 +232,34 @@ impl LedgerKeyStore {
     }
 }
 
+pub trait CanDeriveSecp256k1PublicKey {
+    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey;
+    fn derive_secp256k1_public_key(&self, child: ChildNumber) -> ExtendedPubKey {
+        self.secp256k1_extended_public_key().derive_secp256k1_public_key(child)
+    }
+    fn derive_secp256k1_public_key_by_path(&self, path: &DerivationPath) -> ExtendedPubKey {
+        path.into_iter().fold(self.secp256k1_extended_public_key(), |pubkey, &child| pubkey.derive_secp256k1_public_key(child))
+    }
+}
+
+impl CanDeriveSecp256k1PublicKey for ExtendedPubKey {
+    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey { self.clone() }
+    fn derive_secp256k1_public_key(&self, child: ChildNumber) -> ExtendedPubKey {
+        self.ckd_pub(&SECP256K1, child).unwrap()
+    }
+}
+
+pub fn public_key_to_lock_arg(pubkey: secp256k1::key::PublicKey) -> H160 {
+    H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20]).expect("Generate hash(H160) from pubkey failed")
+}
+
+pub fn key_chain_to_child_number(key_chain: KeyChain) -> ChildNumber {
+    match key_chain {
+        KeyChain::External => ChildNumber::Normal { index: 0 },
+        KeyChain::Change => ChildNumber::Normal { index: 1},
+    }
+}
+
 /// A ledger device with the Nervos app.
 #[derive(Clone)]
 pub struct LedgerMasterCap {
@@ -239,49 +267,13 @@ pub struct LedgerMasterCap {
 }
 
 impl LedgerMasterCap {
-    pub fn public_key_to_lock_arg(pubkey: secp256k1::key::PublicKey) -> H160 {
-        H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20]).expect("Generate hash(H160) from pubkey failed")
-    }
-
-    pub fn parse_path_as_keychain_and_index(path: &DerivationPath) -> Option<(KeyChain, ChildNumber)> {
-        let chain = path.into_iter().nth(3)?;
-        let keychain = match chain {
-            ChildNumber::Normal{ index: 0 } => Some(KeyChain::External),
-            ChildNumber::Normal{ index: 1 } => Some(KeyChain::Change),
-            _ => None,
-        }?;
-        let index = path.into_iter().nth(4)?;
-        Some((keychain, index.clone()))
-    }
-
-    pub fn derive_public_key(
-        &self,
-        path: &DerivationPath
-    ) -> Result<secp256k1::key::PublicKey, LedgerKeyStoreError> {
-        match Self::parse_path_as_keychain_and_index(path) {
-            Some((keychain, index)) => Ok(self.derive_extended_public_key(keychain, index).public_key),
-            None => Err(LedgerKeyStoreError::InvalidDerivationPath { path: path.clone() }),
-        }
-    }
-
-    pub fn derive_extended_public_key(
+    pub fn derive_bip44_extended_public_key(
         &self,
         chain: KeyChain,
         index: ChildNumber,
     ) -> ExtendedPubKey {
-        let epk = match chain {
-            KeyChain::External => self
-                .account
-                .ext_pub_key_root
-                .ckd_pub(&SECP256K1, ChildNumber::Normal { index: 0 })
-                .unwrap(),
-            KeyChain::Change => self
-                .account
-                .ext_pub_key_root
-                .ckd_pub(&SECP256K1, ChildNumber::Normal { index: 1 })
-                .unwrap(),
-        };
-        epk.ckd_pub(&SECP256K1, index).unwrap()
+        let chain_child_num = key_chain_to_child_number(chain);
+        self.derive_secp256k1_public_key(chain_child_num).derive_secp256k1_public_key(index)
     }
 
     pub fn derived_key_set_by_index(
@@ -297,7 +289,7 @@ impl LedgerMasterCap {
                     let path_string = format!("m/44'/309'/0'/{}/{}", chain as u8, i + start);
                     let path = DerivationPath::from_str(path_string.as_str()).unwrap();
                     let extended_pubkey =
-                        self.derive_extended_public_key(chain, ChildNumber::from(i + start));
+                        self.derive_bip44_extended_public_key(chain, ChildNumber::from(i + start));
                     let pubkey = extended_pubkey.public_key;
                     let hash = H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20])
                         .expect("Generate hash(H160) from pubkey failed");
@@ -390,6 +382,10 @@ impl LedgerMasterCap {
             change_last.clone(),
         ))
     }
+}
+
+impl CanDeriveSecp256k1PublicKey for LedgerMasterCap {
+    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey { self.account.ext_pub_key_root }
 }
 
 const WRITE_ERR_MSG: &'static str = "IO error not possible when writing to Vec last I checked";
@@ -581,6 +577,12 @@ impl LedgerCap {
             let rec_sig = RecoverableSignature::from_compact(data, recovery_id)?;
             return Ok(rec_sig);
         });
+    }
+}
+
+impl CanDeriveSecp256k1PublicKey for LedgerCap {
+    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey {
+        self.master.secp256k1_extended_public_key().derive_secp256k1_public_key_by_path(&self.path)
     }
 }
 
