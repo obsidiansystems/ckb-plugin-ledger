@@ -8,7 +8,7 @@ use ckb_cli_plugin_protocol::{
 use ckb_jsonrpc_types::JsonBytes;
 use ckb_sdk::wallet::{DerivationPath, DerivedKeySet};
 
-use crate::keystore::{to_annotated_transaction, LedgerId, LedgerKeyStore, LedgerKeyStoreError};
+use crate::keystore::{to_annotated_transaction, CanDeriveSecp256k1PublicKey, LedgerId, LedgerKeyStore, LedgerKeyStoreError};
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
     match request {
@@ -121,10 +121,10 @@ fn keystore_handler(
             path,
             password: _,
         } => {
-            let account = keystore.borrow_account(&hash160)?;
+            let master = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
-            let public_key = account
-                .extended_privkey(drv_path.as_ref())?
+            let public_key = master.as_ledger_cap()
+                .child_from_root_path(drv_path.as_ref())?
                 .public_key_prompt()?;
             Ok(PluginResponse::Bytes(JsonBytes::from_vec(
                 public_key.serialize().to_vec(),
@@ -194,9 +194,9 @@ fn keystore_handler(
             //     "SignTaret: {}",
             //     serde_json::to_string_pretty(&target).unwrap()
             // );
-            let account = keystore.borrow_account(&hash160)?;
+            let master = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
-            let ledger_cap = account.extended_privkey(drv_path.as_ref())?;
+            let ledger_cap = master.as_ledger_cap().child_from_root_path(drv_path.as_ref())?;
             let sign_msg = |(msg, display_hex)| -> Result<_, LedgerKeyStoreError> {
                 let magic_string = String::from("Nervos Message:");
                 let magic_bytes = magic_string.as_bytes();
@@ -216,11 +216,7 @@ fn keystore_handler(
                     inputs,
                     change_path,
                 } => {
-                    let signing_lock_arg = match ledger_cap.extended_public_key() {
-                        Ok(extended_public_key) => Ok(crate::keystore::public_key_to_lock_arg(extended_public_key.public_key)),
-                        _ if drv_path == crate::keystore::ledger_account_root_path() => Ok(hash160),
-                        _ => Err(LedgerKeyStoreError::InvalidDerivationPath { path: drv_path }),
-                    }?;
+                    let signing_lock_arg = crate::keystore::hash_public_key(&ledger_cap.secp256k1_extended_public_key().public_key);
                     let signature = ledger_cap.begin_sign_recoverable(to_annotated_transaction(
                         tx,
                         inputs,
