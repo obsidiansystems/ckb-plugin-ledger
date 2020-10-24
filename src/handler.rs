@@ -8,7 +8,7 @@ use ckb_cli_plugin_protocol::{
 use ckb_jsonrpc_types::JsonBytes;
 use ckb_sdk::wallet::{DerivationPath, DerivedKeySet};
 
-use crate::keystore::{to_annotated_transaction, CanDeriveSecp256k1PublicKey, LedgerId, LedgerKeyStore, LedgerKeyStoreError};
+use crate::keystore::{to_annotated_transaction, LedgerId, LedgerKeyStore, LedgerKeyStoreError};
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
     match request {
@@ -216,7 +216,11 @@ fn keystore_handler(
                     inputs,
                     change_path,
                 } => {
-                    let signing_lock_arg = crate::keystore::public_key_to_lock_arg(ledger_cap.secp256k1_extended_public_key().public_key);
+                    let signing_lock_arg = match ledger_cap.extended_public_key() {
+                        Ok(extended_public_key) => Ok(crate::keystore::public_key_to_lock_arg(extended_public_key.public_key)),
+                        _ if drv_path == crate::keystore::ledger_account_root_path() => Ok(hash160),
+                        _ => Err(LedgerKeyStoreError::InvalidDerivationPath { path: drv_path }),
+                    }?;
                     let signature = ledger_cap.begin_sign_recoverable(to_annotated_transaction(
                         tx,
                         inputs,

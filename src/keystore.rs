@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::iter::FromIterator;
 use std::fmt::Debug;
 use std::fs;
 use std::io::prelude::{Read, Write};
@@ -234,18 +235,18 @@ impl LedgerKeyStore {
 
 pub trait CanDeriveSecp256k1PublicKey {
     fn secp256k1_extended_public_key(&self) -> ExtendedPubKey;
-    fn derive_secp256k1_public_key(&self, child: ChildNumber) -> ExtendedPubKey {
+    fn derive_secp256k1_public_key(&self, child: ChildNumber) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
         self.secp256k1_extended_public_key().derive_secp256k1_public_key(child)
     }
-    fn derive_secp256k1_public_key_by_path(&self, path: &DerivationPath) -> ExtendedPubKey {
-        path.into_iter().fold(self.secp256k1_extended_public_key(), |pubkey, &child| pubkey.derive_secp256k1_public_key(child))
+    fn derive_secp256k1_public_key_by_path(&self, path: &DerivationPath) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
+        path.into_iter().fold(Ok(self.secp256k1_extended_public_key()), |pubkey, &child| pubkey?.derive_secp256k1_public_key(child))
     }
 }
 
 impl CanDeriveSecp256k1PublicKey for ExtendedPubKey {
     fn secp256k1_extended_public_key(&self) -> ExtendedPubKey { self.clone() }
-    fn derive_secp256k1_public_key(&self, child: ChildNumber) -> ExtendedPubKey {
-        self.ckd_pub(&SECP256K1, child).unwrap()
+    fn derive_secp256k1_public_key(&self, child: ChildNumber) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
+        self.ckd_pub(&SECP256K1, child).map_err(LedgerKeyStoreError::Bip32Error)
     }
 }
 
@@ -271,9 +272,9 @@ impl LedgerMasterCap {
         &self,
         chain: KeyChain,
         index: ChildNumber,
-    ) -> ExtendedPubKey {
+    ) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
         let chain_child_num = key_chain_to_child_number(chain);
-        self.derive_secp256k1_public_key(chain_child_num).derive_secp256k1_public_key(index)
+        self.derive_secp256k1_public_key(chain_child_num)?.derive_secp256k1_public_key(index)
     }
 
     pub fn derived_key_set_by_index(
@@ -289,7 +290,7 @@ impl LedgerMasterCap {
                     let path_string = format!("m/44'/309'/0'/{}/{}", chain as u8, i + start);
                     let path = DerivationPath::from_str(path_string.as_str()).unwrap();
                     let extended_pubkey =
-                        self.derive_bip44_extended_public_key(chain, ChildNumber::from(i + start));
+                        self.derive_bip44_extended_public_key(chain, ChildNumber::from(i + start)).unwrap();
                     let pubkey = extended_pubkey.public_key;
                     let hash = H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20])
                         .expect("Generate hash(H160) from pubkey failed");
@@ -578,10 +579,8 @@ impl LedgerCap {
             return Ok(rec_sig);
         });
     }
-}
 
-impl CanDeriveSecp256k1PublicKey for LedgerCap {
-    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey {
+    pub fn extended_public_key(&self) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
         self.master.secp256k1_extended_public_key().derive_secp256k1_public_key_by_path(&self.path)
     }
 }
@@ -667,10 +666,20 @@ fn hash_public_key(public_key: &secp256k1::PublicKey) -> H160 {
         .expect("Generate hash(H160) from pubkey failed")
 }
 
+const MANDATORY_PREFIX_PATH0: ChildNumber = ChildNumber::Hardened { index: 44 };
+const MANDATORY_PREFIX_PATH1: ChildNumber = ChildNumber::Hardened { index: 309 };
 const MANDATORY_PREFIX: &[ChildNumber] = &[
-    ChildNumber::Hardened { index: 44 },
-    ChildNumber::Hardened { index: 309 },
+    MANDATORY_PREFIX_PATH0,
+    MANDATORY_PREFIX_PATH1,
 ];
+
+const LEDGER_ACCOUNT_ROOT_PATH: &[ChildNumber] = &[
+    MANDATORY_PREFIX_PATH0,
+    MANDATORY_PREFIX_PATH1,
+    ChildNumber::Hardened { index: 0 }
+];
+
+pub fn ledger_account_root_path() -> DerivationPath { DerivationPath::from_iter(LEDGER_ACCOUNT_ROOT_PATH.iter().cloned()) }
 
 fn is_valid_derivation_path(path: &[ChildNumber]) -> bool {
     path.iter()
