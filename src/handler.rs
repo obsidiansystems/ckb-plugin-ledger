@@ -8,7 +8,10 @@ use ckb_cli_plugin_protocol::{
 use ckb_jsonrpc_types::JsonBytes;
 use ckb_sdk::wallet::{DerivationPath, DerivedKeySet};
 
-use crate::keystore::{to_annotated_transaction, CanDeriveSecp256k1PublicKey, LedgerId, LedgerKeyStore, LedgerKeyStoreError};
+use crate::keystore::{
+    to_annotated_transaction, CanDeriveSecp256k1PublicKey, LedgerId, LedgerKeyStore,
+    LedgerKeyStoreError,
+};
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
     match request {
@@ -216,7 +219,9 @@ fn keystore_handler(
                     inputs,
                     change_path,
                 } => {
-                    let signing_lock_arg = crate::keystore::hash_public_key(&ledger_cap.secp256k1_extended_public_key().public_key);
+                    let signing_lock_arg = crate::keystore::hash_public_key(
+                        &ledger_cap.secp256k1_extended_public_key().public_key,
+                    );
                     let signature = ledger_cap.begin_sign_recoverable(to_annotated_transaction(
                         tx,
                         inputs,

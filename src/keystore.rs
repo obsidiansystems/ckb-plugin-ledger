@@ -62,10 +62,13 @@ const MANDATORY_PREFIX: &[ChildNumber] = &[
     ChildNumber::Hardened { index: 309 },
 ];
 
-pub fn fixed_ledger_account_path() -> DerivationPath { DerivationPath::from(MANDATORY_PREFIX).child(ChildNumber::Hardened { index: 0 }) }
+pub fn fixed_ledger_account_path() -> DerivationPath {
+    DerivationPath::from(MANDATORY_PREFIX).child(ChildNumber::Hardened { index: 0 })
+}
 
 pub fn hash_public_key(public_key: &secp256k1::PublicKey) -> H160 {
-    H160::from_slice(&blake2b_256(&public_key.serialize()[..])[0..20]).expect("Generate hash(H160) from pubkey failed")
+    H160::from_slice(&blake2b_256(&public_key.serialize()[..])[0..20])
+        .expect("Generate hash(H160) from pubkey failed")
 }
 
 // A `LedgerAccount` that has been imported and saved in the wallet
@@ -223,9 +226,10 @@ impl LedgerKeyStore {
                 path,
             };
             let lock_arg = account.lock_arg();
-            let json_value = ledger_imported_account_to_json(&LedgerImportedAccount { account: account.clone() })?;
-            self.imported_accounts
-                .insert(lock_arg.clone(), account );
+            let json_value = ledger_imported_account_to_json(&LedgerImportedAccount {
+                account: account.clone(),
+            })?;
+            self.imported_accounts.insert(lock_arg.clone(), account);
             fs::File::create(&filepath)
                 .and_then(|mut file| file.write_all(json_value.to_string().as_bytes()))
                 .map_err(|err| LedgerKeyStoreError::KeyStoreIOError(err))?;
@@ -245,25 +249,41 @@ impl LedgerKeyStore {
 
 pub trait CanDeriveSecp256k1PublicKey {
     fn secp256k1_extended_public_key(&self) -> ExtendedPubKey;
-    fn derive_secp256k1_public_key(&self, child: ChildNumber) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
-        self.secp256k1_extended_public_key().derive_secp256k1_public_key(child)
+    fn derive_secp256k1_public_key(
+        &self,
+        child: ChildNumber,
+    ) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
+        self.secp256k1_extended_public_key()
+            .derive_secp256k1_public_key(child)
     }
-    fn derive_secp256k1_public_key_by_path(&self, path: &DerivationPath) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
-        path.into_iter().fold(Ok(self.secp256k1_extended_public_key()), |pubkey, &child| pubkey?.derive_secp256k1_public_key(child))
+    fn derive_secp256k1_public_key_by_path(
+        &self,
+        path: &DerivationPath,
+    ) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
+        path.into_iter().fold(
+            Ok(self.secp256k1_extended_public_key()),
+            |pubkey, &child| pubkey?.derive_secp256k1_public_key(child),
+        )
     }
 }
 
 impl CanDeriveSecp256k1PublicKey for ExtendedPubKey {
-    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey { self.clone() }
-    fn derive_secp256k1_public_key(&self, child: ChildNumber) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
-        self.ckd_pub(&SECP256K1, child).map_err(LedgerKeyStoreError::Bip32Error)
+    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey {
+        self.clone()
+    }
+    fn derive_secp256k1_public_key(
+        &self,
+        child: ChildNumber,
+    ) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
+        self.ckd_pub(&SECP256K1, child)
+            .map_err(LedgerKeyStoreError::Bip32Error)
     }
 }
 
 pub fn key_chain_to_child_number(key_chain: KeyChain) -> ChildNumber {
     match key_chain {
         KeyChain::External => ChildNumber::Normal { index: 0 },
-        KeyChain::Change => ChildNumber::Normal { index: 1},
+        KeyChain::Change => ChildNumber::Normal { index: 1 },
     }
 }
 
@@ -291,7 +311,9 @@ pub struct LedgerAccount {
 }
 
 impl CanDeriveSecp256k1PublicKey for LedgerAccount {
-    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey { self.ext_pub_key_root }
+    fn secp256k1_extended_public_key(&self) -> ExtendedPubKey {
+        self.ext_pub_key_root
+    }
 }
 
 impl LedgerAccount {
@@ -305,7 +327,8 @@ impl LedgerAccount {
         index: ChildNumber,
     ) -> Result<ExtendedPubKey, LedgerKeyStoreError> {
         let chain_child_num = key_chain_to_child_number(chain);
-        self.derive_secp256k1_public_key(chain_child_num)?.derive_secp256k1_public_key(index)
+        self.derive_secp256k1_public_key(chain_child_num)?
+            .derive_secp256k1_public_key(index)
     }
 
     pub fn derived_key_set_by_index(
@@ -321,7 +344,9 @@ impl LedgerAccount {
                     let path = fixed_ledger_account_path()
                         .child(key_chain_to_child_number(chain))
                         .child(ChildNumber::Normal { index: i + start });
-                    let extended_pubkey = self.bip44_extended_public_key(chain, ChildNumber::from(i + start)).unwrap();
+                    let extended_pubkey = self
+                        .bip44_extended_public_key(chain, ChildNumber::from(i + start))
+                        .unwrap();
                     (path, hash_public_key(&extended_pubkey.public_key))
                 })
                 .into_iter()
@@ -344,7 +369,12 @@ impl LedgerAccount {
             let chain = key_chain_to_child_number(KeyChain::External);
             let index = ChildNumber::Normal { index: i };
             let path = fixed_ledger_account_path().child(chain).child(index);
-            let hash = hash_public_key(&self.derive_secp256k1_public_key(chain)?.derive_secp256k1_public_key(index)?.public_key);
+            let hash = hash_public_key(
+                &self
+                    .derive_secp256k1_public_key(chain)?
+                    .derive_secp256k1_public_key(index)?
+                    .public_key,
+            );
             external_key_set.push((path, hash));
         }
 
@@ -353,7 +383,12 @@ impl LedgerAccount {
             let chain = key_chain_to_child_number(KeyChain::Change);
             let index = ChildNumber::Normal { index: i };
             let path = fixed_ledger_account_path().child(chain).child(index);
-            let hash = hash_public_key(&self.derive_secp256k1_public_key(chain)?.derive_secp256k1_public_key(index)?.public_key);
+            let hash = hash_public_key(
+                &self
+                    .derive_secp256k1_public_key(chain)?
+                    .derive_secp256k1_public_key(index)?
+                    .public_key,
+            );
             change_key_set.push((path, hash.clone()));
             if change_last == &hash {
                 return Ok(DerivedKeySet {
@@ -376,10 +411,12 @@ impl LedgerAccount {
         })
     }
 
-    pub fn child_from_root_path(&self, path: &[ChildNumber]) -> Result<LedgerAccount, LedgerKeyStoreError> {
+    pub fn child_from_root_path(
+        &self,
+        path: &[ChildNumber],
+    ) -> Result<LedgerAccount, LedgerKeyStoreError> {
         if self.root_path_is_child(path) {
-            path
-                .iter()
+            path.iter()
                 .skip(self.path.as_ref().len())
                 .fold(Ok(self.clone()), |account, &child| account?.child(child))
         } else {
@@ -653,12 +690,14 @@ fn ledger_imported_account_from_json(
 
     let account_lock_arg = account.lock_arg();
     if account_lock_arg != parsed_acc.lock_arg {
-        panic!(format!("Imported account's lock arg ({}) doesn't match the lock arg of the public key ({})", parsed_acc.lock_arg, account_lock_arg));
+        panic!(format!(
+            "Imported account's lock arg ({}) doesn't match the lock arg of the public key ({})",
+            parsed_acc.lock_arg, account_lock_arg
+        ));
     }
 
     Ok(LedgerImportedAccount { account })
 }
-
 
 pub fn to_annotated_transaction(
     tx: Transaction,
@@ -671,12 +710,13 @@ pub fn to_annotated_transaction(
     let annotated_inputs = input_txs
         .iter()
         .zip(tx.inputs.iter())
-        .map(|(transaction, input)|
+        .map(|(transaction, input)| {
             packed::AnnotatedCellInput::new_builder()
                 .input(From::from(input.clone()))
                 .source(packed::Transaction::from(transaction.clone()).raw())
                 .build()
-        ).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
 
     let cell_deps = tx
         .cell_deps
@@ -718,7 +758,9 @@ pub fn to_annotated_transaction(
         .build();
 
     // Ignore the root change path, which is the default value sent when change is not specified
-    let raw_change_path = if change_path == "m" { Vec::<packed::Uint32>::new() } else {
+    let raw_change_path = if change_path == "m" {
+        Vec::<packed::Uint32>::new()
+    } else {
         DerivationPath::from_str(&change_path)
             .unwrap()
             .as_ref()
@@ -734,7 +776,7 @@ pub fn to_annotated_transaction(
                     .build()
             })
             .collect::<Vec<packed::Uint32>>()
-        };
+    };
 
     let witnesses_vec = if tx.witnesses.is_empty() {
         eprintln!("witnesses_vec is empty!!");
@@ -752,11 +794,17 @@ pub fn to_annotated_transaction(
             .cloned()
             .zip(tx.inputs.iter())
             .zip(input_txs.iter())
-            .filter_map(|((witness, input), input_tx)|
-                if input_tx.outputs[input.previous_output.index.value() as u32 as usize].lock.args == signing_lock_arg_json_bytes
-                { Some(witness) }
-                else
-                { None })
+            .filter_map(|((witness, input), input_tx)| {
+                if input_tx.outputs[input.previous_output.index.value() as u32 as usize]
+                    .lock
+                    .args
+                    == signing_lock_arg_json_bytes
+                {
+                    Some(witness)
+                } else {
+                    None
+                }
+            })
             .chain(tx.witnesses.iter().skip(num_inputs).cloned())
             .map(From::from)
             .collect::<Vec<_>>()
