@@ -416,8 +416,8 @@ impl LedgerAccount {
         path: &[ChildNumber],
     ) -> Result<LedgerAccount, LedgerKeyStoreError> {
         if self.root_path_is_child(path) {
-            path.iter()
-                .skip(self.path.as_ref().len())
+            path[self.path.as_ref().len()..]
+                .iter()
                 .fold(Ok(self.clone()), |account, &child| account?.child(child))
         } else {
             Err(LedgerKeyStoreError::InvalidDerivationPath {
@@ -805,7 +805,7 @@ pub fn to_annotated_transaction(
                     None
                 }
             })
-            .chain(tx.witnesses.iter().skip(num_inputs).cloned())
+            .chain(tx.witnesses[num_inputs..].iter().cloned())
             .map(From::from)
             .collect::<Vec<_>>()
     };
