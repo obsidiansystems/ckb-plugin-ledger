@@ -123,7 +123,7 @@ fn keystore_handler(
         } => {
             let master = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
-            let public_key = master.as_ledger_cap()
+            let public_key = master
                 .child_from_root_path(drv_path.as_ref())?
                 .public_key_prompt()?;
             Ok(PluginResponse::Bytes(JsonBytes::from_vec(
@@ -196,7 +196,7 @@ fn keystore_handler(
             // );
             let master = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
-            let ledger_cap = master.as_ledger_cap().child_from_root_path(drv_path.as_ref())?;
+            let ledger_cap = master.child_from_root_path(drv_path.as_ref())?;
             let sign_msg = |(msg, display_hex)| -> Result<_, LedgerKeyStoreError> {
                 let magic_string = String::from("Nervos Message:");
                 let magic_bytes = magic_string.as_bytes();
