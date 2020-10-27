@@ -1,6 +1,6 @@
 [package]
 name = "ckb-plugin-ledger"
-version = "0.2.0"
+version = "0.2.1"
 license = "MIT"
 authors = [ "Obsidian Systems LLC <maintainer@obsidian.systems>" ]
 edition = "2018"
