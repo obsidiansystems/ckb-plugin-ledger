@@ -34,5 +34,5 @@ in rustPlatform.buildRustPackage {
 
   # Cargo hash must be updated when Cargo.lock file changes.
   # cargoSha256 = pkgs.lib.fakeSha256;
-  cargoSha256 = "02m0393wx00c4c9m2ssvkgd45v4jrg56mlwyn9kfadfrg4kn88gg";
+  cargoSha256 = "104qj3whvvm296wrnmkf9xsic4var56nkp0h7xar849d3brcway8";
 }

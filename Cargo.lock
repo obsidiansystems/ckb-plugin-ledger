@@ -515,6 +515,7 @@ dependencies = [
  "either",
  "env_logger",
  "failure",
+ "faster-hex 0.4.1",
  "ledger-apdu",
  "ledger-transport-hid",
  "log",
