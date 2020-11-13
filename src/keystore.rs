@@ -810,7 +810,7 @@ pub fn to_annotated_transaction(
                 let is_self_multisig = lock.code_hash == multisig_code_hash
                       && args_bytes.len() > 4
                       && (args_bytes[4] as usize)*20+4 <= args_bytes.len()
-                      && args_bytes[4..].chunks_exact(20).any( |chunk| chunk == signing_lock_arg_json_bytes.as_bytes() );
+                      && args_bytes[5..].chunks_exact(20).any( |chunk| chunk == signing_lock_arg_json_bytes.as_bytes() );
                 if is_self_sighash || is_self_multisig
                 {
                     Some(witness)
