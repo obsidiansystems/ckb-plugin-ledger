@@ -6,7 +6,7 @@
 , rustPackages ? pkgs.rustChannelOf {
     date = "2020-05-04";
     rustToolchain = ./rust-toolchain;
-    sha256 = "07mp7n4n3cmm37mv152frv7p9q58ahjw5k8gcq48vfczrgm5qgiy";
+    sha256 = "1hkisci4as93hx8ybf13bmxkj9jsvd4a9ilvjmw6n64w4jkc1nk9";
   }
 
 , pkgs ? pkgsFun {
@@ -34,5 +34,5 @@ in rustPlatform.buildRustPackage {
 
   # Cargo hash must be updated when Cargo.lock file changes.
   # cargoSha256 = pkgs.lib.fakeSha256;
-  cargoSha256 = "02m0393wx00c4c9m2ssvkgd45v4jrg56mlwyn9kfadfrg4kn88gg";
+  cargoSha256 = "1a7znwpwry81mvbwnmn99c2nyqcn42q8f8wpj7dzpnfli6flpghf";
 }

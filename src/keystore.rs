@@ -14,7 +14,7 @@ use secp256k1::{key::PublicKey, recovery::RecoverableSignature, recovery::Recove
 use ckb_jsonrpc_types::Transaction;
 use ckb_types::{
     bytes::Bytes,
-    packed::{self, WitnessArgs},
+    packed::{self, WitnessArgs, Uint32},
     H160, H256,
 };
 
@@ -40,9 +40,9 @@ pub mod parse;
 pub use error::Error as LedgerKeyStoreError;
 
 use ckb_types::{
-    packed::{AnnotatedTransaction, Bip32, Uint32},
     prelude::*,
 };
+use crate::annotated::*;
 
 #[cfg(test)]
 mod tests {
@@ -711,7 +711,7 @@ pub fn to_annotated_transaction(
         .iter()
         .zip(tx.inputs.iter())
         .map(|(transaction, input)| {
-            packed::AnnotatedCellInput::new_builder()
+            AnnotatedCellInput::new_builder()
                 .input(From::from(input.clone()))
                 .source(packed::Transaction::from(transaction.clone()).raw())
                 .build()
@@ -737,12 +737,12 @@ pub fn to_annotated_transaction(
         .cloned()
         .map(From::from)
         .collect::<Vec<_>>();
-    let raw_tx = packed::AnnotatedRawTransaction::new_builder()
+    let raw_tx = AnnotatedRawTransaction::new_builder()
         .version(tx.version.pack())
         .cell_deps(packed::CellDepVec::new_builder().set(cell_deps).build())
         .header_deps(packed::Byte32Vec::new_builder().set(header_deps).build())
         .inputs(
-            packed::AnnotatedCellInputVec::new_builder()
+            AnnotatedCellInputVec::new_builder()
                 .set(annotated_inputs)
                 .build(),
         )
@@ -810,8 +810,8 @@ pub fn to_annotated_transaction(
             .collect::<Vec<_>>()
     };
 
-    packed::AnnotatedTransaction::new_builder()
-        .change_path(packed::Bip32::new_builder().set(raw_change_path).build())
+    AnnotatedTransaction::new_builder()
+        .change_path(Bip32::new_builder().set(raw_change_path).build())
         .input_count(input_count)
         .raw(raw_tx)
         .witnesses(witnesses_vec.pack())
