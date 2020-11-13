@@ -14,6 +14,7 @@ use secp256k1::{key::PublicKey, recovery::RecoverableSignature, recovery::Recove
 use ckb_jsonrpc_types::Transaction;
 use ckb_types::{
     bytes::Bytes,
+    h256,
     packed::{self, WitnessArgs},
     H160, H256,
 };
@@ -81,8 +82,6 @@ struct LedgerImportedAccount {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 // TODO make contain actual id to distinguish between ledgers
 pub struct LedgerId(pub H256);
-
-
 
 impl LedgerKeyStore {
     pub fn new(dir: PathBuf) -> Self {
@@ -791,31 +790,35 @@ pub fn to_annotated_transaction(
         let signing_lock_arg_json_bytes = match signing_lock_arg {
             H160(arr) => ckb_jsonrpc_types::JsonBytes::from_vec(arr.to_vec()),
         };
-        let mut multisig_code_hash_bytes = [0u8; 32];
-        faster_hex::hex_decode_unchecked("5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8".as_bytes(), &mut multisig_code_hash_bytes);
-        let multisig_code_hash = H256(multisig_code_hash_bytes);
-        let mut sighash_code_hash_bytes = [0u8; 32];
-        faster_hex::hex_decode_unchecked("9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8".as_bytes(), &mut sighash_code_hash_bytes);
-        let sighash_code_hash = H256(multisig_code_hash_bytes);
+        let multisig_code_hash =
+            h256!("0x5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8");
+        let sighash_code_hash =
+            h256!("0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8");
         tx.witnesses
             .iter()
             .cloned()
             .zip(tx.inputs.iter())
             .zip(input_txs.iter())
             .filter_map(|((witness, input), input_tx)| {
-                let lock = & input_tx.outputs[input.previous_output.index.value() as u32 as usize].lock;
-                let args = & lock.args;
-                // let args_bytes = args.as_bytes();
-                let args_bytes = & WitnessArgs::from_slice(witness.as_bytes()).unwrap().lock().to_opt().unwrap().raw_data();
-                let is_self_sighash = lock.code_hash == sighash_code_hash && lock.args == signing_lock_arg_json_bytes;
-                let multisig_code = lock.code_hash == multisig_code_hash;
+                let lock =
+                    &input_tx.outputs[input.previous_output.index.value() as u32 as usize].lock;
+                let witness_bytes = &WitnessArgs::from_slice(witness.as_bytes())
+                    .ok()
+                    .and_then(|wit| wit.lock().to_opt().map(|lb| lb.raw_data()));
+                let is_self_sighash =
+                    lock.code_hash == sighash_code_hash && lock.args == signing_lock_arg_json_bytes;
                 let is_self_multisig = lock.code_hash == multisig_code_hash
-                      && args_bytes.len() > 4
-                      && (args_bytes[3] as usize)*20+4 <= args_bytes.len()
-                      && args_bytes[4..].chunks_exact(20).any( |chunk| chunk == signing_lock_arg_json_bytes.as_bytes() );
-                log::error!("ISM: {} {} {} {} {}", is_self_multisig, multisig_code, args_bytes.len(), args_bytes[3], serde_json::to_string(&args_bytes).unwrap());
-                if is_self_sighash || is_self_multisig
-                {
+                    && witness_bytes
+                        .as_ref()
+                        .filter(|wit| {
+                            wit.len() > 4
+                                && (wit[3] as usize) * 20 + 4 <= wit.len()
+                                && wit[4..]
+                                    .chunks_exact(20)
+                                    .any(|chunk| chunk == signing_lock_arg_json_bytes.as_bytes())
+                        })
+                        .is_some();
+                if is_self_sighash || is_self_multisig {
                     Some(witness)
                 } else {
                     None
