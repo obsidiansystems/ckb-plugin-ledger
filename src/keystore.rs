@@ -805,12 +805,15 @@ pub fn to_annotated_transaction(
             .filter_map(|((witness, input), input_tx)| {
                 let lock = & input_tx.outputs[input.previous_output.index.value() as u32 as usize].lock;
                 let args = & lock.args;
-                let args_bytes = args.as_bytes();
+                // let args_bytes = args.as_bytes();
+                let args_bytes = & WitnessArgs::from_slice(witness.as_bytes()).unwrap().lock().to_opt().unwrap().raw_data();
                 let is_self_sighash = lock.code_hash == sighash_code_hash && lock.args == signing_lock_arg_json_bytes;
+                let multisig_code = lock.code_hash == multisig_code_hash;
                 let is_self_multisig = lock.code_hash == multisig_code_hash
                       && args_bytes.len() > 4
-                      && (args_bytes[4] as usize)*20+4 <= args_bytes.len()
-                      && args_bytes[5..].chunks_exact(20).any( |chunk| chunk == signing_lock_arg_json_bytes.as_bytes() );
+                      && (args_bytes[3] as usize)*20+4 <= args_bytes.len()
+                      && args_bytes[4..].chunks_exact(20).any( |chunk| chunk == signing_lock_arg_json_bytes.as_bytes() );
+                log::error!("ISM: {} {} {} {} {}", is_self_multisig, multisig_code, args_bytes.len(), args_bytes[3], serde_json::to_string(&args_bytes).unwrap());
                 if is_self_sighash || is_self_multisig
                 {
                     Some(witness)
