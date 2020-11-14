@@ -9,6 +9,7 @@ use crate::keystore::LedgerKeyStore;
 
 mod handler;
 mod keystore;
+mod annotated;
 
 fn main() {
     env_logger::init();
