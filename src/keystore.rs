@@ -14,7 +14,8 @@ use secp256k1::{key::PublicKey, recovery::RecoverableSignature, recovery::Recove
 use ckb_jsonrpc_types::Transaction;
 use ckb_types::{
     bytes::Bytes,
-    packed::{self, WitnessArgs},
+    h256,
+    packed::{self, Uint32, WitnessArgs},
     H160, H256,
 };
 
@@ -39,10 +40,8 @@ pub mod parse;
 
 pub use error::Error as LedgerKeyStoreError;
 
-use ckb_types::{
-    packed::{AnnotatedTransaction, Bip32, Uint32},
-    prelude::*,
-};
+use crate::annotated::*;
+use ckb_types::prelude::*;
 
 #[cfg(test)]
 mod tests {
@@ -711,7 +710,7 @@ pub fn to_annotated_transaction(
         .iter()
         .zip(tx.inputs.iter())
         .map(|(transaction, input)| {
-            packed::AnnotatedCellInput::new_builder()
+            AnnotatedCellInput::new_builder()
                 .input(From::from(input.clone()))
                 .source(packed::Transaction::from(transaction.clone()).raw())
                 .build()
@@ -737,12 +736,12 @@ pub fn to_annotated_transaction(
         .cloned()
         .map(From::from)
         .collect::<Vec<_>>();
-    let raw_tx = packed::AnnotatedRawTransaction::new_builder()
+    let raw_tx = AnnotatedRawTransaction::new_builder()
         .version(tx.version.pack())
         .cell_deps(packed::CellDepVec::new_builder().set(cell_deps).build())
         .header_deps(packed::Byte32Vec::new_builder().set(header_deps).build())
         .inputs(
-            packed::AnnotatedCellInputVec::new_builder()
+            AnnotatedCellInputVec::new_builder()
                 .set(annotated_inputs)
                 .build(),
         )
@@ -789,17 +788,35 @@ pub fn to_annotated_transaction(
         let signing_lock_arg_json_bytes = match signing_lock_arg {
             H160(arr) => ckb_jsonrpc_types::JsonBytes::from_vec(arr.to_vec()),
         };
+        let multisig_code_hash =
+            h256!("0x5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8");
+        let sighash_code_hash =
+            h256!("0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8");
         tx.witnesses
             .iter()
             .cloned()
             .zip(tx.inputs.iter())
             .zip(input_txs.iter())
             .filter_map(|((witness, input), input_tx)| {
-                if input_tx.outputs[input.previous_output.index.value() as u32 as usize]
-                    .lock
-                    .args
-                    == signing_lock_arg_json_bytes
-                {
+                let lock =
+                    &input_tx.outputs[input.previous_output.index.value() as u32 as usize].lock;
+                let witness_bytes = &WitnessArgs::from_slice(witness.as_bytes())
+                    .ok()
+                    .and_then(|wit| wit.lock().to_opt().map(|lb| lb.raw_data()));
+                let is_self_sighash =
+                    lock.code_hash == sighash_code_hash && lock.args == signing_lock_arg_json_bytes;
+                let is_self_multisig = lock.code_hash == multisig_code_hash
+                    && witness_bytes
+                        .as_ref()
+                        .filter(|wit| {
+                            wit.len() > 4
+                                && (wit[3] as usize) * 20 + 4 <= wit.len()
+                                && wit[4..]
+                                    .chunks_exact(20)
+                                    .any(|chunk| chunk == signing_lock_arg_json_bytes.as_bytes())
+                        })
+                        .is_some();
+                if is_self_sighash || is_self_multisig {
                     Some(witness)
                 } else {
                     None
@@ -810,8 +827,8 @@ pub fn to_annotated_transaction(
             .collect::<Vec<_>>()
     };
 
-    packed::AnnotatedTransaction::new_builder()
-        .change_path(packed::Bip32::new_builder().set(raw_change_path).build())
+    AnnotatedTransaction::new_builder()
+        .change_path(Bip32::new_builder().set(raw_change_path).build())
         .input_count(input_count)
         .raw(raw_tx)
         .witnesses(witnesses_vec.pack())

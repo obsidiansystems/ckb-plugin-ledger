@@ -10,18 +10,19 @@ repository = "https://github.com/obsidiansystems/ckb-plugin-ledger/"
 
 [dependencies]
 # Same as ckb-cli
-ckb-jsonrpc-types = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
-ckb-hash = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
-ckb-crypto = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec", features = ["secp"] }
-ckb-build-info = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
-ckb-types = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
-ckb-util = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
-ckb-resource = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
-ckb-dao-utils = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
+ckb-jsonrpc-types = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1" }
+ckb-hash = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1" }
+ckb-crypto = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1", features = ["secp"] }
+ckb-build-info = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1" }
+ckb-types = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1" }
+ckb-util = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1" }
+ckb-resource = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1" }
+ckb-dao-utils = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1" }
 
-ckb-sdk = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046eae364e41d8fe59216bb502d91453b6b" }
-ckb-index = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046eae364e41d8fe59216bb502d91453b6b" }
-ckb-cli-plugin-protocol = { git = "https://github.com/obsidiansystems/ckb-cli", rev = "74a53046eae364e41d8fe59216bb502d91453b6b" }
+ckb-sdk = { git = "https://github.com/nervosnetwork/ckb-cli", rev = "babc52ae593474f7fddb80f7c229374203310d6a" }
+ckb-index = { git = "https://github.com/nervosnetwork/ckb-cli", rev = "babc52ae593474f7fddb80f7c229374203310d6a" }
+ckb-cli-plugin-protocol = { git = "https://github.com/nervosnetwork/ckb-cli", rev = "babc52ae593474f7fddb80f7c229374203310d6a" }
+molecule = "=0.6.0"
 
 ledger-apdu = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "53498e1a9ac3e550601f5a846f63a209c4b12b42"}
 ledger-transport-hid = { git = "https://github.com/obsidiansystems/ledger-rs", rev = "53498e1a9ac3e550601f5a846f63a209c4b12b42"}
@@ -46,4 +47,4 @@ tui = "0.6.0"
 termion = "1.5"
 
 [build-dependencies]
-ckb-build-info = { git = "https://github.com/obsidiansystems/ckb", rev = "9c7c051777c06e540f68bb665277077c3ce8dbec" }
+ckb-build-info = { git = "https://github.com/nervosnetwork/ckb", tag = "v0.37.0-rc1" }
