@@ -1,18 +1,14 @@
+use ckb_types::{bytes::Bytes, H256};
 use std::str::FromStr;
-use ckb_types::{H256, bytes::Bytes};
 
 use ckb_cli_plugin_protocol::{
-    JsonrpcError, KeyStoreRequest, PluginConfig, PluginRequest,
-    PluginResponse, PluginRole, SignTarget,
-};
-use ckb_sdk::wallet::{
-    DerivationPath, DerivedKeySet
+    JsonrpcError, KeyStoreRequest, PluginConfig, PluginRequest, PluginResponse, PluginRole,
+    SignTarget,
 };
 use ckb_jsonrpc_types::JsonBytes;
+use ckb_sdk::wallet::{DerivationPath, DerivedKeySet};
 
-use crate::keystore::{
-    LedgerKeyStore, LedgerKeyStoreError, LedgerId, to_annotated_transaction
-};
+use crate::keystore::{to_annotated_transaction, LedgerId, LedgerKeyStore, LedgerKeyStoreError};
 
 pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<PluginResponse> {
     match request {
@@ -35,8 +31,8 @@ pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<P
                     code: 0,
                     message: e.to_string(),
                     data: None,
-                }))
-        }
+                })),
+            }
         }
         _ => Some(PluginResponse::Error(JsonrpcError {
             code: 0,
@@ -46,74 +42,93 @@ pub fn handle(keystore: &mut LedgerKeyStore, request: PluginRequest) -> Option<P
     }
 }
 
-fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) -> Result <PluginResponse, LedgerKeyStoreError> {
+fn keystore_handler(
+    keystore: &mut LedgerKeyStore,
+    request: KeyStoreRequest,
+) -> Result<PluginResponse, LedgerKeyStoreError> {
     match request {
         KeyStoreRequest::ListAccount => {
             let ledger_ids = keystore.discovered_devices();
             let lockargs = keystore.list_accounts()?;
-            let payload1: Vec<_> = ledger_ids.iter().map(|LedgerId (v)| ckb_jsonrpc_types::JsonBytes::from_bytes(Bytes::from(v.as_bytes().to_vec()))).collect();
-            let payload2 = lockargs.iter().map(|v| ckb_jsonrpc_types::JsonBytes::from_bytes(Bytes::from(v.as_bytes().to_vec()))).collect();
+            let payload1: Vec<_> = ledger_ids
+                .iter()
+                .map(|LedgerId(v)| {
+                    ckb_jsonrpc_types::JsonBytes::from_bytes(Bytes::from(v.as_bytes().to_vec()))
+                })
+                .collect();
+            let payload2 = lockargs
+                .iter()
+                .map(|v| {
+                    ckb_jsonrpc_types::JsonBytes::from_bytes(Bytes::from(v.as_bytes().to_vec()))
+                })
+                .collect();
             let payload = [payload1, payload2].concat();
             Ok(PluginResponse::BytesVec(payload))
         }
-        KeyStoreRequest::HasAccount(lock_arg) =>
-            if let Ok (b) = keystore.has_account(&lock_arg) {
+        KeyStoreRequest::HasAccount(lock_arg) => {
+            if let Ok(b) = keystore.has_account(&lock_arg) {
                 Ok(PluginResponse::Boolean(b))
             } else {
                 Ok(PluginResponse::Boolean(false))
             }
-        KeyStoreRequest::CreateAccount(_) => {
-            Ok(PluginResponse::Error(JsonrpcError {
-                code: 0,
-                message: String::from("Create account is not supported for Ledger, try 'ledger import' command instead"),
-                data: None,
-            }))
         }
-        KeyStoreRequest::UpdatePassword { .. } => {
-            Ok(PluginResponse::Error(JsonrpcError {
-                code: 0,
-                message: String::from("Update password is not a valid operation for Ledger"),
-                data: None,
-            }))
-        }
+        KeyStoreRequest::CreateAccount(_) => Ok(PluginResponse::Error(JsonrpcError {
+            code: 0,
+            message: String::from(
+                "Create account is not supported for Ledger, try 'ledger import' command instead",
+            ),
+            data: None,
+        })),
+        KeyStoreRequest::UpdatePassword { .. } => Ok(PluginResponse::Error(JsonrpcError {
+            code: 0,
+            message: String::from("Update password is not a valid operation for Ledger"),
+            data: None,
+        })),
         // Import {
         //     privkey: [u8; 32],
         //     chain_code: [u8; 32],
         //     password: Option<String>,
         // },
-        KeyStoreRequest::Import { .. } => {
-            Ok(PluginResponse::Error(JsonrpcError {
-                code: 0,
-                message: String::from("'account import' is not available for Ledger"),
-                data: None,
-            }))
-        }
+        KeyStoreRequest::Import { .. } => Ok(PluginResponse::Error(JsonrpcError {
+            code: 0,
+            message: String::from("'account import' is not available for Ledger"),
+            data: None,
+        })),
         // ImportAccount {
         //     account_id: JsonBytes,
         //     password: Option<String>,
         // },
-        KeyStoreRequest::ImportAccount { account_id, password: _ } => {
-            let ledger_id :H256 = H256::from_slice(&account_id.into_bytes()).unwrap();
-            let h160 = keystore.import_account(LedgerId (ledger_id))?;
+        KeyStoreRequest::ImportAccount {
+            account_id,
+            password: _,
+        } => {
+            let ledger_id: H256 = H256::from_slice(&account_id.into_bytes()).unwrap();
+            let h160 = keystore.import_account(LedgerId(ledger_id))?;
             Ok(PluginResponse::H160(h160))
         }
-        KeyStoreRequest::Export { .. } => {
-            Ok(PluginResponse::Error(JsonrpcError {
-                code: 0,
-                message: String::from("'account export' is not available for Ledger"),
-                data: None,
-            }))
-        }
+        KeyStoreRequest::Export { .. } => Ok(PluginResponse::Error(JsonrpcError {
+            code: 0,
+            message: String::from("'account export' is not available for Ledger"),
+            data: None,
+        })),
         // ExtendedPubkey {
         //     hash160: H160,
         //     path: String,
         //     password: Option<String>,
         // },
-        KeyStoreRequest::ExtendedPubkey { hash160, path, password: _ } => {
-            let account = keystore.borrow_account(&hash160)?;
+        KeyStoreRequest::ExtendedPubkey {
+            hash160,
+            path,
+            password: _,
+        } => {
+            let master = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
-            let public_key = account.extended_privkey(drv_path.as_ref())?.public_key_prompt()?;
-            Ok(PluginResponse::Bytes(JsonBytes::from_vec(public_key.serialize().to_vec())))
+            let public_key = master
+                .child_from_root_path(drv_path.as_ref())?
+                .public_key_prompt()?;
+            Ok(PluginResponse::Bytes(JsonBytes::from_vec(
+                public_key.serialize().to_vec(),
+            )))
         }
         // DerivedKeySet {
         //     hash160: H160,
@@ -127,10 +142,12 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             external_max_len,
             change_last,
             change_max_len,
-            password: _
+            password: _,
         } => {
             let account = keystore.borrow_account(&hash160)?;
-            account.derived_key_set(external_max_len, &change_last, change_max_len).map(|v| derived_key_set_to_response(v))
+            account
+                .derived_key_set(external_max_len, &change_last, change_max_len)
+                .map(|v| derived_key_set_to_response(v))
         }
         // DerivedKeySetByIndex {
         //     hash160: H160,
@@ -146,10 +163,15 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             external_length,
             change_start,
             change_length,
-            password: _
+            password: _,
         } => {
             let account = keystore.borrow_account(&hash160)?;
-            let s = account.derived_key_set_by_index(external_start, external_length, change_start, change_length);
+            let s = account.derived_key_set_by_index(
+                external_start,
+                external_length,
+                change_start,
+                change_length,
+            );
             Ok(derived_key_set_to_response(s))
         }
         // Sign {
@@ -166,20 +188,21 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
             message: _,
             target,
             recoverable,
-            password: _
+            password: _,
         } => {
             // eprintln!(
             //     "SignTaret: {}",
             //     serde_json::to_string_pretty(&target).unwrap()
             // );
-            let account = keystore.borrow_account(&hash160)?;
+            let master = keystore.borrow_account(&hash160)?;
             let drv_path = DerivationPath::from_str(&path).unwrap();
-            let ledger_cap = account.extended_privkey(drv_path.as_ref())?;
-            let sign_msg = |(msg, display_hex)| -> Result <_, LedgerKeyStoreError> {
+            let ledger_cap = master.child_from_root_path(drv_path.as_ref())?;
+            let sign_msg = |(msg, display_hex)| -> Result<_, LedgerKeyStoreError> {
                 let magic_string = String::from("Nervos Message:");
                 let magic_bytes = magic_string.as_bytes();
                 let msg_with_magic = [magic_bytes, msg].concat();
-                let signature = ledger_cap.sign_message_recoverable(&msg_with_magic, display_hex)?;
+                let signature =
+                    ledger_cap.sign_message_recoverable(&msg_with_magic, display_hex)?;
                 let json_bytes = if recoverable {
                     JsonBytes::from_vec(serialize_signature(&signature).to_vec())
                 } else {
@@ -188,17 +211,22 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                 Ok(PluginResponse::Bytes(json_bytes))
             };
             match *target {
-                SignTarget::Transaction {tx, inputs, change_path} => {
-                    let signature = ledger_cap.begin_sign_recoverable(to_annotated_transaction(tx, inputs, change_path))?;
+                SignTarget::Transaction {
+                    tx,
+                    inputs,
+                    change_path,
+                } => {
+                    let signature = ledger_cap.begin_sign_recoverable(to_annotated_transaction(
+                        tx,
+                        inputs,
+                        ledger_cap.lock_arg(),
+                        change_path,
+                    ))?;
                     Ok(PluginResponse::Bytes(JsonBytes::from_vec(signature)))
                 }
-                SignTarget::AnyString(string) => {
-                    sign_msg((&string.as_bytes(), false))
-                }
-                SignTarget::AnyData(to_sign) => {
-                    sign_msg((&to_sign.as_bytes(), true))
-                }
-                SignTarget::AnyMessage( h256 ) => {
+                SignTarget::AnyString(string) => sign_msg((&string.as_bytes(), false)),
+                SignTarget::AnyData(to_sign) => sign_msg((&to_sign.as_bytes(), true)),
+                SignTarget::AnyMessage(h256) => {
                     let signature = ledger_cap.sign_message_hash(&h256.as_bytes())?;
                     let json_bytes = if recoverable {
                         JsonBytes::from_vec(serialize_signature(&signature).to_vec())
@@ -209,20 +237,26 @@ fn keystore_handler (keystore: &mut LedgerKeyStore, request: KeyStoreRequest) ->
                 }
             }
         }
-        _ => {
-            Ok(PluginResponse::Error(JsonrpcError {
-                code: 0,
-                message: String::from("Not supported yet"),
-                data: None,
-            }))
-        }
+        _ => Ok(PluginResponse::Error(JsonrpcError {
+            code: 0,
+            message: String::from("Not supported yet"),
+            data: None,
+        })),
     }
 }
 
-fn derived_key_set_to_response (v:DerivedKeySet) -> PluginResponse {
+fn derived_key_set_to_response(v: DerivedKeySet) -> PluginResponse {
     PluginResponse::DerivedKeySet {
-        external: v.external.into_iter().map(|(p, k)| (p.to_string(),k) ).collect(),
-        change: v.change.into_iter().map(|(p, k)| (p.to_string(),k) ).collect(),
+        external: v
+            .external
+            .into_iter()
+            .map(|(p, k)| (p.to_string(), k))
+            .collect(),
+        change: v
+            .change
+            .into_iter()
+            .map(|(p, k)| (p.to_string(), k))
+            .collect(),
     }
 }
 
