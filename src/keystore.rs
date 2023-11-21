@@ -5,6 +5,7 @@ use std::fs;
 use std::io::prelude::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
+use bitcoin::Network;
 
 use bitflags;
 use byteorder::{BigEndian, WriteBytesExt};
@@ -24,9 +25,12 @@ use ckb_crypto::secp::SECP256K1;
 use ckb_hash::blake2b_256;
 
 use ckb_sdk::constants::SECP_SIGNATURE_SIZE;
-use ckb_sdk::wallet::{
-    ChainCode, ChildNumber, DerivationPath, DerivedKeySet, ExtendedPubKey, Fingerprint, KeyChain,
+
+use ckb_signer::{DerivedKeySet};
+use bitcoin::util::bip32::{
+    ChainCode, ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint
 };
+use ckb_signer::KeyChain;
 use serde::{Deserialize, Serialize};
 
 use ledger::LedgerError as RawLedgerError;
@@ -65,7 +69,7 @@ pub fn fixed_ledger_account_path() -> DerivationPath {
     DerivationPath::from(MANDATORY_PREFIX).child(ChildNumber::Hardened { index: 0 })
 }
 
-pub fn hash_public_key(public_key: &secp256k1::PublicKey) -> H160 {
+pub fn hash_public_key(public_key: &bitcoin::secp256k1::PublicKey) -> H160 {
     H160::from_slice(&blake2b_256(&public_key.serialize()[..])[0..20])
         .expect("Generate hash(H160) from pubkey failed")
 }
@@ -201,10 +205,11 @@ impl LedgerKeyStore {
             let len2 = parse::split_first(&mut resp)? as usize;
             let chain_code = parse::split_off_at(&mut resp, len2)?;
             parse::assert_nothing_left(resp)?;
-            let public_key = PublicKey::from_slice(&raw_public_key)?;
-            let chain_code = ChainCode(chain_code.try_into().expect("chain_code is not 32 bytes"));
+            let public_key = bitcoin::secp256k1::PublicKey::from_slice(&raw_public_key)?;
+            let chain_code = ChainCode::from(chain_code);
             let path = fixed_ledger_account_path();
             let ext_pub_key_root = ExtendedPubKey {
+                network: Network::Bitcoin,
                 depth: path.as_ref().len() as u8,
                 parent_fingerprint: {
                     let mut engine = hash160::Hash::engine();
@@ -649,7 +654,7 @@ fn ledger_imported_account_to_json(
     let lock_arg = inp.account.lock_arg();
     let extended_public_key_root = LedgerAccountExtendedPubKeyJson {
         address: inp.account.ext_pub_key_root.public_key.to_string(),
-        chain_code: (|ChainCode(bytes)| bytes)(inp.account.ext_pub_key_root.chain_code),
+        chain_code: inp.account.ext_pub_key_root.chain_code.into_bytes(),
     };
     serde_json::to_value(LedgerAccountJson {
         ledger_id,
@@ -664,9 +669,10 @@ fn ledger_imported_account_from_json(
     let parsed_acc: LedgerAccountJson = serde_json::from_str(inp)?;
     let path = fixed_ledger_account_path();
     let ext_pub_key_root = {
-        let public_key = PublicKey::from_str(&parsed_acc.extended_public_key_root.address)?;
-        let chain_code = ChainCode(parsed_acc.extended_public_key_root.chain_code);
+        let public_key = bitcoin::secp256k1::PublicKey::from_str(&parsed_acc.extended_public_key_root.address)?;
+        let chain_code = ChainCode::from(parsed_acc.extended_public_key_root.chain_code.as_slice());
         ExtendedPubKey {
+            network: Network::Bitcoin,
             depth: path.as_ref().len() as u8,
             parent_fingerprint: {
                 let mut engine = hash160::Hash::engine();

@@ -6,7 +6,8 @@ use ckb_cli_plugin_protocol::{
     SignTarget,
 };
 use ckb_jsonrpc_types::JsonBytes;
-use ckb_sdk::wallet::{DerivationPath, DerivedKeySet};
+use ckb_signer::{DerivedKeySet};
+use bitcoin::util::bip32::{DerivationPath};
 
 use crate::keystore::{to_annotated_transaction, LedgerId, LedgerKeyStore, LedgerKeyStoreError};
 
