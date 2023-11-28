@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use ckb_sdk::wallet::{Bip32Error, DerivationPath};
+use bitcoin::util::bip32::{Error as Bip32Error, DerivationPath};
 use ckb_types::H160;
 
 use failure::Fail;
@@ -23,10 +23,13 @@ pub enum Error {
     Bip32Error(Bip32Error),
     #[fail(display = "Error in secp256k1 marshalling: {}", _0)]
     Secp256k1Error(secp256k1::Error),
+    #[fail(display = "Error in secp256k1 marshalling: {}", _0)]
+    BitcoinSecp256k1Error(bitcoin::secp256k1::Error),
     #[fail(
         display = "Error when parsing ledger response, remaining response too short to parse: expected {} bytes, got data {:?}",
         _0, _1
     )]
+
     RestOfResponseTooShort { expected: usize, tail: Vec<u8> },
     #[fail(
         display = "Error when parsing ledger response, remaining response left over after parse: {:?}",
@@ -60,6 +63,10 @@ impl From<secp256k1::Error> for Error {
     fn from(err: secp256k1::Error) -> Self {
         Error::Secp256k1Error(err)
     }
+}
+
+impl From<bitcoin::secp256k1::Error> for Error {
+    fn from(err: bitcoin::secp256k1::Error) -> Self { Error::BitcoinSecp256k1Error(err) }
 }
 
 impl From<serde_json::error::Error> for Error {
